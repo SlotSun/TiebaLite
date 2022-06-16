@@ -52,7 +52,7 @@ class MessageListAdapter(
         viewHolder.setText(R.id.message_list_item_user_name, StringUtil.getUsernameString(context, item.replyer.name, item.replyer.nameShow))
         viewHolder.setText(
                 R.id.message_list_item_user_time,
-                TimeUtils.getRelativeTimeString(context, item.time!!)
+                DateTimeUtils.getRelativeTimeString(context, item.time!!)
         )
         val contentTextView = viewHolder.getView<TextView>(R.id.message_list_item_content)
         contentTextView.text = StringUtil.getEmotionContent(EmotionUtil.EMOTION_ALL_TYPE, contentTextView, item.content)
@@ -71,7 +71,7 @@ class MessageListAdapter(
                 }
         )
         textView.setOnClickListener {
-            if ("1" == item.isFloor) {
+            if ("1" == item.isFloor && item.quotePid != null) {
                 FloorActivity.launch(context, item.threadId!!, postId = item.quotePid)
             } else {
                 ThreadActivity.launch(context, item.threadId!!)

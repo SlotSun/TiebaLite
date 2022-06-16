@@ -5,8 +5,8 @@ import androidx.recyclerview.widget.RecyclerView
 import com.huanchengfly.tieba.post.components.MyViewHolder
 
 abstract class BaseAdapter<Item>(
-        val context: Context,
-        items: List<Item>? = null
+    val context: Context,
+    items: List<Item>? = null
 ) : RecyclerView.Adapter<MyViewHolder>() {
     private var itemList: MutableList<Item> = (items ?: emptyList()).toMutableList()
 
@@ -16,11 +16,11 @@ abstract class BaseAdapter<Item>(
     var onItemLongClickListener: OnItemLongClickListener<Item>? = null
         private set
 
-    fun setOnItemClickListener(listener: OnItemClickListener<Item>?) {
+    open fun setOnItemClickListener(listener: OnItemClickListener<Item>?) {
         onItemClickListener = listener
     }
 
-    fun setOnItemClickListener(listener: ((viewHolder: MyViewHolder, item: Item, position: Int) -> Unit)?) {
+    open fun setOnItemClickListener(listener: ((viewHolder: MyViewHolder, item: Item, position: Int) -> Unit)?) {
         onItemClickListener = object : OnItemClickListener<Item> {
             override fun onClick(viewHolder: MyViewHolder, item: Item, position: Int) {
                 if (listener != null) {

@@ -1,5 +1,7 @@
 package com.huanchengfly.tieba.post.fragments;
 
+import static com.huanchengfly.tieba.post.utils.FileUtil.FILE_TYPE_DOWNLOAD;
+
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.Activity;
@@ -33,33 +35,30 @@ import androidx.annotation.Nullable;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.google.android.material.snackbar.Snackbar;
+import com.hjq.permissions.Permission;
 import com.huanchengfly.tieba.post.R;
 import com.huanchengfly.tieba.post.components.dialogs.PermissionDialog;
 import com.huanchengfly.tieba.post.interfaces.OnReceivedTitleListener;
 import com.huanchengfly.tieba.post.interfaces.WebViewListener;
 import com.huanchengfly.tieba.post.models.PermissionBean;
 import com.huanchengfly.tieba.post.utils.AccountUtil;
+import com.huanchengfly.tieba.post.utils.AssetUtil;
 import com.huanchengfly.tieba.post.utils.DialogUtil;
 import com.huanchengfly.tieba.post.utils.FileUtil;
-import com.huanchengfly.tieba.post.utils.HistoryHelper;
 import com.huanchengfly.tieba.post.utils.NavigationHelper;
+import com.huanchengfly.tieba.post.utils.PermissionUtils;
 import com.huanchengfly.tieba.post.utils.ThemeUtil;
 import com.huanchengfly.tieba.post.utils.TiebaLiteJavaScript;
 import com.huanchengfly.tieba.post.utils.Util;
-import com.huanchengfly.tieba.post.utils.AssetUtil;
-import com.yanzhenjie.permission.AndPermission;
-import com.yanzhenjie.permission.runtime.Permission;
 
 import org.jetbrains.annotations.NotNull;
 
-import java.util.List;
-
-import static com.huanchengfly.tieba.post.utils.FileUtil.FILE_TYPE_DOWNLOAD;
+import java.util.Arrays;
 
 //TODO: 代码太烂，需要重写
 public class WebViewFragment extends BaseFragment implements DownloadListener {
     public static final String TAG = WebViewFragment.class.getSimpleName();
-    private static final String DEFAULT_TITLE = "贴吧 Lite";
+    private static final String DEFAULT_TITLE = "";
     private final static int FILE_CHOOSER_RESULT_CODE = 1;
     private String mUrl;
     private String mTitle;
@@ -70,6 +69,7 @@ public class WebViewFragment extends BaseFragment implements DownloadListener {
     private String tbliteJs;
     private String nightJs;
     private String aNightJs;
+    private String clipboardGuardJs;
     private WebView mWebView;
     private NavigationHelper navigationHelper;
     private ValueCallback<Uri> uploadMessage;
@@ -190,12 +190,12 @@ public class WebViewFragment extends BaseFragment implements DownloadListener {
         tbliteJs = AssetUtil.getStringFromAsset(getAttachContext(), "tblite.js");
         nightJs = AssetUtil.getStringFromAsset(getAttachContext(), "night.js");
         aNightJs = AssetUtil.getStringFromAsset(getAttachContext(), "anight.js");
+        clipboardGuardJs = AssetUtil.getStringFromAsset(getAttachContext(), "ClipboardGuard.js");
     }
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        HistoryHelper helper = new HistoryHelper(getAttachContext());
         initData();
         Bundle bundle = getArguments();
         navigationHelper = NavigationHelper.newInstance(getAttachContext());
@@ -217,7 +217,7 @@ public class WebViewFragment extends BaseFragment implements DownloadListener {
     }
 
     @Override
-    int getLayoutId() {
+    public int getLayoutId() {
         return R.layout.fragment_web_view;
     }
 
@@ -264,6 +264,7 @@ public class WebViewFragment extends BaseFragment implements DownloadListener {
 
     private void injectJavaScript() {
         if (mWebView == null) return;
+        mWebView.evaluateJavascript(clipboardGuardJs, null);
         String nowTheme = ThemeUtil.getTheme(getAttachContext());
         String url = mWebView.getUrl();
         if (url == null || nowTheme == null) {
@@ -379,18 +380,26 @@ public class WebViewFragment extends BaseFragment implements DownloadListener {
                                 getAttachContext().getString(R.string.title_ask_permission, uri.getHost(), getAttachContext().getString(R.string.permission_name_location)),
                                 R.drawable.ic_round_location_on))
                         .setOnGrantedCallback(isForever -> {
-                            AndPermission.with(getAttachContext())
-                                    .runtime()
-                                    .permission(Permission.ACCESS_COARSE_LOCATION, Permission.ACCESS_FINE_LOCATION)
-                                    .onGranted((List<String> permissions) -> {
+                            PermissionUtils.INSTANCE.askPermission(
+                                    getAttachContext(),
+                                    new PermissionUtils.Permission(
+                                            Arrays.asList(Permission.ACCESS_COARSE_LOCATION, Permission.ACCESS_FINE_LOCATION),
+                                            getAttachContext().getString(R.string.usage_webview_location_permission)
+                                    ),
+                                    R.string.tip_no_permission,
+                                    () -> {
                                         if (isEnabledLocationFunction()) {
                                             callback.invoke(origin, true, isForever);
                                         } else {
                                             callback.invoke(origin, false, false);
                                         }
-                                    })
-                                    .onDenied((List<String> permissions) -> callback.invoke(origin, false, false))
-                                    .start();
+                                        return null;
+                                    },
+                                    () -> {
+                                        callback.invoke(origin, false, false);
+                                        return null;
+                                    }
+                            );
                         })
                         .setOnDeniedCallback(isForever -> callback.invoke(origin, false, false))
                         .show();
@@ -415,12 +424,27 @@ public class WebViewFragment extends BaseFragment implements DownloadListener {
         }
 
         public boolean onJsConfirm(WebView view, String url, String message, final JsResult result) {
-            DialogUtil.build(view.getContext())
-                    .setTitle("Confirm")
-                    .setMessage(message)
-                    .setPositiveButton(android.R.string.ok, (dialog, which) -> result.confirm())
-                    .setNegativeButton(android.R.string.cancel, (dialog, which) -> result.cancel())
-                    .create().show();
+            if ("ClipboardGuardCopyRequest".equalsIgnoreCase(message)) {
+                Uri uri = Uri.parse(mWebView.getUrl());
+                if (uri != null && uri.getHost() != null) {
+                    new PermissionDialog(getAttachContext(),
+                            new PermissionBean(PermissionDialog.CustomPermission.PERMISSION_CLIPBOARD_COPY,
+                                    uri.getHost(),
+                                    getAttachContext().getString(R.string.title_ask_permission_clipboard_copy, uri.getHost()),
+                                    R.drawable.ic_round_file_copy))
+                            .setOnGrantedCallback(isForever -> result.confirm())
+                            .setOnDeniedCallback(isForever -> result.cancel())
+                            .show();
+                }
+            } else {
+                DialogUtil.build(view.getContext())
+                        .setTitle("Confirm")
+                        .setMessage(message)
+                        .setPositiveButton(android.R.string.ok, (dialog, which) -> result.confirm())
+                        .setNegativeButton(android.R.string.cancel, (dialog, which) -> result.cancel())
+                        .create()
+                        .show();
+            }
             return true;
         }
 

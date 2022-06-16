@@ -6,6 +6,7 @@ import android.graphics.Typeface
 import android.os.Bundle
 import android.text.TextUtils
 import android.view.View
+import android.view.ViewGroup
 import android.widget.CompoundButton
 import android.widget.ImageView
 import android.widget.TextView
@@ -18,10 +19,12 @@ import com.gyf.immersionbar.ImmersionBar
 import com.huanchengfly.tieba.post.R
 import com.huanchengfly.tieba.post.activities.*
 import com.huanchengfly.tieba.post.api.interfaces.CommonCallback
+import com.huanchengfly.tieba.post.enableChangingLayoutTransition
 import com.huanchengfly.tieba.post.goToActivity
 import com.huanchengfly.tieba.post.interfaces.Refreshable
 import com.huanchengfly.tieba.post.models.MyInfoBean
 import com.huanchengfly.tieba.post.ui.theme.interfaces.ExtraRefreshable
+import com.huanchengfly.tieba.post.ui.theme.utils.ColorStateListUtils
 import com.huanchengfly.tieba.post.ui.theme.utils.ThemeUtils
 import com.huanchengfly.tieba.post.utils.*
 import com.huanchengfly.tieba.post.widgets.theme.TintSwitch
@@ -45,9 +48,6 @@ class MyInfoFragment : BaseFragment(), View.OnClickListener, CompoundButton.OnCh
 
     @BindView(R.id.my_info_grid_fans)
     lateinit var fansTextView: TextView
-
-    @BindView(R.id.my_info_grid_forums)
-    lateinit var forumsTextView: TextView
 
     @BindView(R.id.my_info_grid_threads)
     lateinit var threadsTextView: TextView
@@ -91,13 +91,12 @@ class MyInfoFragment : BaseFragment(), View.OnClickListener, CompoundButton.OnCh
         if (AccountUtil.isLoggedIn(attachContext)) {
             val bduss = AccountUtil.getBduss(attachContext)
             if (bduss != null) {
-                AccountUtil.updateUserInfoByBduss(attachContext, bduss, object : CommonCallback<MyInfoBean> {
+                AccountUtil.updateUserInfoByBduss(bduss, object : CommonCallback<MyInfoBean> {
                     override fun onSuccess(myInfoBean: MyInfoBean) {
                         if (myInfoBean.errorCode == 0) {
                             dataBean = myInfoBean
                             followsTextView.text = dataBean!!.data.getConcernNum()
                             fansTextView.text = dataBean!!.data.getFansNum()
-                            forumsTextView.text = dataBean!!.data.getLikeForumNum()
                             threadsTextView.text = dataBean!!.data.getPostNum()
                             userNameTextView.text = dataBean!!.data.getShowName()
                             if (TextUtils.isEmpty(dataBean!!.data.getIntro())) {
@@ -106,7 +105,7 @@ class MyInfoFragment : BaseFragment(), View.OnClickListener, CompoundButton.OnCh
                             contentTextView.text = dataBean!!.data.getIntro()
                             if (Util.canLoadGlide(attachContext)) {
                                 Glide.with(attachContext).clear(avatarImageView)
-                                ImageUtil.load(avatarImageView, ImageUtil.LOAD_TYPE_AVATAR, dataBean!!.data.getAvatarUrl())
+                                ImageUtil.load(avatarImageView, ImageUtil.LOAD_TYPE_ALWAYS_ROUND, dataBean!!.data.getAvatarUrl())
                             }
                             mRefreshView.isRefreshing = false
                         }
@@ -144,10 +143,10 @@ class MyInfoFragment : BaseFragment(), View.OnClickListener, CompoundButton.OnCh
         listOf(
                 followsTextView,
                 fansTextView,
-                forumsTextView,
                 threadsTextView
         ).forEach {
             it.typeface = Typeface.createFromAsset(attachContext.assets, "bebas.ttf")
+            (it.parent as ViewGroup).enableChangingLayoutTransition()
         }
         listOf(
                 R.id.my_info_collect,
@@ -159,21 +158,25 @@ class MyInfoFragment : BaseFragment(), View.OnClickListener, CompoundButton.OnCh
         ).forEach {
             view.findViewById<View>(it).setOnClickListener(this)
         }
+        view.findViewById<ViewGroup>(R.id.my_info_user).enableChangingLayoutTransition()
         (followsTextView.parent as View).setOnClickListener {
+            if (dataBean == null || dataBean!!.data == null) {
+                return@setOnClickListener
+            }
             WebViewActivity.launch(attachContext, attachContext.resources.getString(R.string.url_user_home, dataBean!!.data.getName(), 2))
         }
         (fansTextView.parent as View).setOnClickListener {
+            if (dataBean == null || dataBean!!.data == null) {
+                return@setOnClickListener
+            }
             WebViewActivity.launch(attachContext, attachContext.resources.getString(R.string.url_user_home, dataBean!!.data.getName(), 3))
         }
-        (forumsTextView.parent as View).setOnClickListener {
-            goToActivity<UserActivity> {
-                putExtra(UserActivity.EXTRA_UID, dataBean!!.data.getUid().toString())
-                putExtra(UserActivity.EXTRA_TAB, UserActivity.TAB_LIKE_FORUM)
-            }
-        }
         (threadsTextView.parent as View).setOnClickListener {
+            if (dataBean == null || dataBean!!.data == null) {
+                return@setOnClickListener
+            }
             goToActivity<UserActivity> {
-                putExtra(UserActivity.EXTRA_UID, dataBean!!.data.getUid().toString())
+                putExtra(UserActivity.EXTRA_UID, "${dataBean!!.data.getUid()}")
                 putExtra(UserActivity.EXTRA_TAB, UserActivity.TAB_THREAD)
             }
         }
@@ -202,16 +205,22 @@ class MyInfoFragment : BaseFragment(), View.OnClickListener, CompoundButton.OnCh
         }
     }
 
-    @OnClick(R.id.my_info_edit_btn)
-    fun onEditBtnClicked(view: View) {
-        WebViewActivity.launch(attachContext, getString(R.string.url_edit_info))
-    }
-
     override fun onResume() {
         super.onResume()
-        nightSwitch.setOnCheckedChangeListener(null)
-        nightSwitch.isChecked = ThemeUtil.isNightMode(attachContext)
-        nightSwitch.setOnCheckedChangeListener(this)
+        refreshNightModeStatus()
+        listOf(
+                R.id.my_info_history,
+                R.id.my_info_service_center,
+                R.id.my_info_about
+        ).forEach {
+            mRefreshView.findViewById<View>(it).apply {
+                backgroundTintList = if (appPreferences.listItemsBackgroundIntermixed) {
+                    ColorStateListUtils.createColorStateList(attachContext, R.color.default_color_divider)
+                } else {
+                    ColorStateListUtils.createColorStateList(attachContext, R.color.default_color_card)
+                }
+            }
+        }
     }
 
     override fun onClick(v: View) {
@@ -220,7 +229,7 @@ class MyInfoFragment : BaseFragment(), View.OnClickListener, CompoundButton.OnCh
                 goToActivity<UserCollectActivity>()
             }
             R.id.my_info_theme -> {
-                goToActivity<ThemeActivity>()
+                goToActivity<AppThemeActivity>()
             }
             R.id.my_info_history -> {
                 goToActivity<HistoryActivity>()
@@ -238,11 +247,34 @@ class MyInfoFragment : BaseFragment(), View.OnClickListener, CompoundButton.OnCh
     }
 
     override fun onCheckedChanged(buttonView: CompoundButton, isChecked: Boolean) {
-        if (isChecked) {
+        if (appPreferences.followSystemNight) {
+            DialogUtil.build(attachContext)
+                    .setMessage(R.string.message_dialog_follow_system_night)
+                    .setPositiveButton(R.string.btn_keep_following) { _, _ ->
+                        refreshNightModeStatus()
+                    }
+                    .setNegativeButton(R.string.btn_close_following) { _, _ ->
+                        attachContext.appPreferences.followSystemNight = false
+                        switchNightMode(isChecked)
+                    }
+                    .show()
+        } else {
+            switchNightMode(isChecked)
+        }
+    }
+
+    fun switchNightMode(isNightMode: Boolean) {
+        if (isNightMode) {
             ThemeUtil.switchToNightMode(attachContext as Activity)
         } else {
             ThemeUtil.switchFromNightMode(attachContext as Activity)
         }
+    }
+
+    private fun refreshNightModeStatus() {
+        nightSwitch.setOnCheckedChangeListener(null)
+        nightSwitch.isChecked = ThemeUtil.isNightMode(attachContext)
+        nightSwitch.setOnCheckedChangeListener(this)
     }
 
     override fun onRefresh() {

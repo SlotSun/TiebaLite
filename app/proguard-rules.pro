@@ -38,11 +38,11 @@
 -dontnote com.google.android.material.**
 -dontwarn androidx.**
 
--keepclasseswithmembernames class * {
+-keepclasseswithmembers class * {
     public <init>(android.content.Context, android.util.AttributeSet);
 }
 
--keepclasseswithmembernames class * {
+-keepclasseswithmembers class * {
     public <init>(android.content.Context, android.util.AttributeSet, int);
 }
 
@@ -85,7 +85,7 @@
     void *(**On*Listener);
 }
 # 保留本地native方法不被混淆
--keepclasseswithmembernames class * {
+-keepclasseswithmembers class * {
     native <methods>;
 }
 
@@ -252,3 +252,5 @@
 -keep class androidx.recyclerview.widget.RecyclerView$LayoutParams { *; }
 -keep class androidx.recyclerview.widget.RecyclerView$ViewHolder { *; }
 -keep class androidx.recyclerview.widget.RecyclerView$LayoutManager { *; }
+
+-keep class com.huanchengfly.tieba.post.plugins.** { *; }

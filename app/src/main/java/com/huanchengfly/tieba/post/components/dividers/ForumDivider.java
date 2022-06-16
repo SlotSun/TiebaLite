@@ -12,6 +12,7 @@ import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.huanchengfly.tieba.post.ExtensionsKt;
 import com.huanchengfly.tieba.post.R;
 import com.huanchengfly.tieba.post.ui.theme.interfaces.Tintable;
 import com.huanchengfly.tieba.post.ui.theme.utils.ThemeUtils;
@@ -30,14 +31,21 @@ public class ForumDivider extends RecyclerView.ItemDecoration implements Tintabl
         }
         mOrientation = orientation;
         mDivider = ContextCompat.getDrawable(context, R.drawable.drawable_divider);
-        mDividerHeight = DisplayUtil.dp2px(context, 8);
+        mDividerHeight = DisplayUtil.dp2px(context, 12);
         tint();
     }
 
     @Override
     public void getItemOffsets(@NonNull Rect outRect, @NonNull View view, @NonNull RecyclerView parent, @NonNull RecyclerView.State state) {
         super.getItemOffsets(outRect, view, parent, state);
-        if (mOrientation == LinearLayoutManager.VERTICAL) {
+        int position = parent.getChildAdapterPosition(view) - 1;
+        if (ExtensionsKt.isTablet(parent.getContext())) {
+            if (position % 2 == 0) {
+                outRect.set(0, 0, mDividerHeight / 2, mDividerHeight);
+            } else {
+                outRect.set(mDividerHeight / 2, 0, 0, mDividerHeight);
+            }
+        } else if (mOrientation == LinearLayoutManager.VERTICAL) {
             outRect.set(0, 0, 0, mDividerHeight);
         } else {
             outRect.set(0, 0, mDividerHeight, 0);

@@ -1,4 +1,5 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
+
     <style name="TextAppearance.MaterialSubhead">
         <item name="android:textSize">16sp</item>
         <item name="android:fontFamily" tools:ignore="NewApi">sans-serif</item>
@@ -81,6 +82,7 @@
         <item name="buttonTextColor">@color/default_color_text_on_primary</item>
         <item name="cornerRadius">16dp</item>
         <item name="android:textStyle">bold</item>
+        <item name="android:gravity">center</item>
     </style>
 
     <style name="Widget.Button.Dense" parent="Widget.MaterialComponents.Button.UnelevatedButton">
@@ -141,6 +143,13 @@
         <item name="android:windowAnimationStyle">@style/Animation.Bottom</item>
     </style>
 
+    <style name="Dialog.RequestPermissionTip" parent="Theme.MaterialComponents.DayNight.Dialog">
+        <item name="android:windowFrame">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowAnimationStyle">@style/Animation.Fade</item>
+    </style>
+
     <style name="Widget.ScrollCollapsingToolbar" parent="android:Widget">
         <item name="expandedTitleMargin">32dp</item>
         <item name="statusBarScrim">?attr/colorPrimaryDark</item>
@@ -166,6 +175,10 @@
 
     <style name="TextAppearance.ListTitle" parent="Widget.AppCompat.TextView.SpinnerItem">
         <item name="paddingStart">0dp</item>
+    </style>
+
+    <style name="TextAppearance.Normal">
+        <item name="android:textStyle">normal</item>
     </style>
 
     <style name="TextAppearance.Bold">
@@ -321,7 +334,6 @@
         <item name="android:windowTranslucentStatus">false</item>
         <item name="android:windowTranslucentNavigation">false</item>
         <item name="android:windowBackground">@color/transparent</item>
-        <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">true</item>
         <item name="android:navigationBarColor">?colorNavBar</item>
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
     </style>
@@ -333,7 +345,6 @@
         <item name="android:windowTranslucentStatus">false</item>
         <item name="android:windowTranslucentNavigation">false</item>
         <item name="android:windowBackground">@color/transparent</item>
-        <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">false</item>
         <item name="android:navigationBarColor">?colorNavBar</item>
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
     </style>
@@ -394,6 +405,7 @@
         <item name="android:colorAccent">@color/colorAccent</item>
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorAccent">@color/colorAccent</item>
+        <item name="colorOnAccent">@color/theme_color_on_accent_light</item>
         <item name="colorToolbar">?attr/colorPrimary</item>
         <item name="colorToolbarItem">@color/white</item>
         <item name="colorToolbarItemActive">?attr/colorToolbarItem</item>
@@ -404,7 +416,7 @@
         <item name="colorWindowBackground">@color/theme_color_window_background_light</item>
         <item name="colorUnselected">@color/colorUnselected</item>
         <item name="colorNavBar">@color/white</item>
-        <item name="colorFloorCard">@color/colorFloorCard</item>
+        <item name="colorFloorCard">@color/default_color_floor_card</item>
         <item name="colorCard">@color/white</item>
         <item name="shadow_color">@color/color_shadow</item>
         <item name="color_toolbar_item_secondary">@color/white</item>
@@ -425,6 +437,7 @@
         <item name="android:colorAccent">?attr/colorAccent</item>
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorAccent">@color/colorAccent</item>
+        <item name="colorOnAccent">@color/theme_color_on_accent_dark</item>
         <item name="colorToolbar">?attr/colorPrimary</item>
         <item name="colorToolbarItemActive">?attr/colorToolbarItem</item>
         <item name="colorText">@color/color_text_night</item>
@@ -493,6 +506,7 @@
         <item name="android:popupMenuStyle">@style/LightTranslucentPopupMenu</item>
         <item name="colorPrimary">@color/theme_color_primary_tieba</item>
         <item name="colorAccent">@color/theme_color_primary_tieba</item>
+        <item name="colorOnAccent">@color/theme_color_on_accent_translucent_light</item>
         <item name="colorToolbar">@color/transparent</item>
         <item name="colorBg">@color/transparent</item>
         <item name="colorWindowBackground">@color/transparent</item>
@@ -516,6 +530,7 @@
         <item name="android:popupMenuStyle">@style/DarkTranslucentPopupMenu</item>
         <item name="colorPrimary">@color/theme_color_primary_tieba</item>
         <item name="colorAccent">@color/theme_color_primary_tieba</item>
+        <item name="colorOnAccent">@color/theme_color_on_accent_translucent_dark</item>
         <item name="colorToolbar">@color/transparent</item>
         <item name="colorBg">@color/transparent</item>
         <item name="colorNavBar">@color/transparent</item>
@@ -583,7 +598,9 @@
         <item name="colorToolbar">@color/theme_color_toolbar_grey_dark</item>
         <item name="colorToolbarItem">@color/theme_color_toolbar_item_night</item>
         <item name="colorToolbarItemActive">@color/theme_color_toolbar_item_active_grey_dark</item>
-        <item name="color_toolbar_item_secondary">@color/theme_color_toolbar_item_secondary_grey_dark</item>
+        <item name="color_toolbar_item_secondary">
+            @color/theme_color_toolbar_item_secondary_grey_dark
+        </item>
         <item name="colorBg">@color/theme_color_background_grey_dark</item>
         <item name="colorWindowBackground">@color/theme_color_window_background_grey_dark</item>
         <item name="colorNavBar">@color/theme_color_nav_grey_dark</item>

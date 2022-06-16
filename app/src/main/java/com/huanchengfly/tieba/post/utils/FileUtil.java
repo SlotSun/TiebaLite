@@ -1,5 +1,7 @@
 package com.huanchengfly.tieba.post.utils;
 
+import static android.content.Context.DOWNLOAD_SERVICE;
+
 import android.app.DownloadManager;
 import android.content.ContentResolver;
 import android.content.ContentUris;
@@ -10,10 +12,10 @@ import android.os.Build;
 import android.os.Environment;
 import android.provider.DocumentsContract;
 import android.provider.MediaStore;
+import android.text.TextUtils;
 import android.webkit.URLUtil;
 
 import com.huanchengfly.tieba.post.R;
-import com.yanzhenjie.permission.runtime.Permission;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -21,13 +23,14 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-
-import static android.content.Context.DOWNLOAD_SERVICE;
+import java.util.Arrays;
 
 public class FileUtil {
     public static final int FILE_TYPE_DOWNLOAD = 0;
     public static final int FILE_TYPE_VIDEO = 1;
     public static final int FILE_TYPE_AUDIO = 2;
+
+    public static final String FILE_FOLDER = "TiebaLite";
 
     public static void deleteAllFiles(File root) {
         File[] files = root.listFiles();
@@ -52,15 +55,13 @@ public class FileUtil {
     }
 
     /**
-     *  
-     *
      * @param context 上下文对象
-     * @param dir      存储目录
+     * @param dir     存储目录
      * @return
      */
     public static String getFilePath(Context context, String dir) {
         String directoryPath = "";
-        //判断SD卡是否可用 
+        //判断SD卡是否可用
         if (Environment.MEDIA_MOUNTED.equals(Environment.getExternalStorageState())) {
             directoryPath = context.getExternalFilesDir(dir).getAbsolutePath();
         } else {
@@ -183,7 +184,7 @@ public class FileUtil {
                 directory = Environment.DIRECTORY_DOWNLOADS;
                 break;
         }
-        request.setDestinationInExternalPublicDir(directory, "Tieba Lite/" + fileName);
+        request.setDestinationInExternalPublicDir(directory, FILE_FOLDER + File.separator + fileName);
         final DownloadManager downloadManager = (DownloadManager) context.getSystemService(DOWNLOAD_SERVICE);
         // 添加一个下载任务
         if (downloadManager != null) {
@@ -196,10 +197,17 @@ public class FileUtil {
             downloadBySystemWithPermission(context, fileType, url, fileName);
             return;
         }
-        PermissionUtil.askPermission(context,
-                data -> downloadBySystemWithPermission(context, fileType, url, fileName),
-                R.string.toast_without_permission_download,
-                new PermissionUtil.Permission(Permission.WRITE_EXTERNAL_STORAGE, context.getString(R.string.tip_permission_storage_download)));
+        PermissionUtils.INSTANCE.askPermission(
+                context,
+                new PermissionUtils.Permission(
+                        Arrays.asList(PermissionUtils.READ_EXTERNAL_STORAGE, PermissionUtils.WRITE_EXTERNAL_STORAGE),
+                        context.getString(R.string.tip_permission_storage_download)
+                ),
+                () -> {
+                    downloadBySystemWithPermission(context, fileType, url, fileName);
+                    return null;
+                }
+        );
     }
 
     public static String readFile(File file) {
@@ -232,5 +240,17 @@ public class FileUtil {
             e.printStackTrace();
         }
         return false;
+    }
+
+    //修改文件扩展名
+    public static String changeFileExtension(String fileName, String newExtension) {
+        if (TextUtils.isEmpty(fileName)) {
+            return fileName;
+        }
+        int index = fileName.lastIndexOf(".");
+        if (index == -1) {
+            return fileName + newExtension;
+        }
+        return fileName.substring(0, index) + newExtension;
     }
 }

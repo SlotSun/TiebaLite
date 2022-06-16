@@ -31,11 +31,20 @@ class SearchForumFragment : BaseFragment(), ISearchFragment, OnItemClickListener
     @BindView(R.id.fragment_search_recycler_view)
     lateinit var recyclerView: RecyclerView
 
+    private var loaded: Boolean = false
     private var keyword: String? = null
-    private lateinit var layoutManager: VirtualLayoutManager
-    private lateinit var delegateAdapter: DelegateAdapter
-    private lateinit var exactMatchAdapter: SearchForumAdapter
-    private lateinit var fuzzyMatchAdapter: SearchForumAdapter
+    private val layoutManager: VirtualLayoutManager by lazy { VirtualLayoutManager(attachContext) }
+    private val delegateAdapter: DelegateAdapter by lazy { DelegateAdapter(layoutManager) }
+    private val exactMatchAdapter: SearchForumAdapter by lazy {
+        SearchForumAdapter(attachContext).apply {
+            setOnItemClickListener(this@SearchForumFragment)
+        }
+    }
+    private val fuzzyMatchAdapter: SearchForumAdapter by lazy {
+        SearchForumAdapter(attachContext).apply {
+            setOnItemClickListener(this@SearchForumFragment)
+        }
+    }
     private var mData: SearchForumBean.DataBean? = null
 
     override fun setKeyword(
@@ -47,7 +56,7 @@ class SearchForumFragment : BaseFragment(), ISearchFragment, OnItemClickListener
             refreshLayout?.autoRefresh()
         } else {
             mData = null
-            delegateAdapter.clear()
+            if (loaded) delegateAdapter.clear()
         }
     }
 
@@ -61,14 +70,6 @@ class SearchForumFragment : BaseFragment(), ISearchFragment, OnItemClickListener
         super.onCreate(savedInstanceState)
         if (arguments != null) {
             keyword = requireArguments().getString(ARG_KEYWORD)
-        }
-        layoutManager = VirtualLayoutManager(attachContext)
-        delegateAdapter = DelegateAdapter(layoutManager)
-        exactMatchAdapter = SearchForumAdapter(attachContext).apply {
-            setOnItemClickListener(this@SearchForumFragment)
-        }
-        fuzzyMatchAdapter = SearchForumAdapter(attachContext).apply {
-            setOnItemClickListener(this@SearchForumFragment)
         }
     }
 
@@ -105,6 +106,7 @@ class SearchForumFragment : BaseFragment(), ISearchFragment, OnItemClickListener
     private fun reloadAdapters() {
         delegateAdapter.clear()
         if (mData != null) {
+            loaded = true
             if (mData!!.exactMatch != null) {
                 exactMatchAdapter.setData(listOf(mData!!.exactMatch!!))
                 delegateAdapter.addAdapter(HeaderDelegateAdapter(
@@ -112,7 +114,7 @@ class SearchForumFragment : BaseFragment(), ISearchFragment, OnItemClickListener
                         R.string.title_exact_match,
                         R.drawable.ic_round_graphic_eq
                 ).apply {
-                    setBackgroundResource(R.drawable.bg_top_radius_8dp)
+                    setHeaderBackgroundResource(R.drawable.bg_top_radius_8dp)
                     topMargin = attachContext.resources.getDimensionPixelSize(R.dimen.card_margin)
                     startPadding = 16.dpToPx()
                     endPadding = 16.dpToPx()
@@ -126,7 +128,7 @@ class SearchForumFragment : BaseFragment(), ISearchFragment, OnItemClickListener
                         R.string.title_fuzzy_match,
                         R.drawable.ic_infinite
                 ).apply {
-                    setBackgroundResource(R.drawable.bg_top_radius_8dp)
+                    setHeaderBackgroundResource(R.drawable.bg_top_radius_8dp)
                     topMargin = attachContext.resources.getDimensionPixelSize(R.dimen.card_margin)
                     startPadding = 16.dpToPx()
                     endPadding = 16.dpToPx()

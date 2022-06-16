@@ -7,6 +7,7 @@ import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import androidx.recyclerview.widget.RecyclerView
 import butterknife.BindView
+import cn.dreamtobe.kpswitch.util.KeyboardUtil
 import com.google.android.material.textfield.TextInputLayout
 import com.huanchengfly.tieba.post.R
 import com.huanchengfly.tieba.post.adapters.SearchPostAdapter
@@ -63,6 +64,9 @@ class SearchPostActivity : BaseActivity() {
         if (keyword != null) {
             editText.setText(keyword)
         }
+        editText.post {
+            KeyboardUtil.showKeyboard(editText)
+        }
     }
 
     private fun initView() {
@@ -92,6 +96,10 @@ class SearchPostActivity : BaseActivity() {
     }
 
     fun refresh() {
+        if (keyword == null || keyword == null) {
+            refreshLayout.finishRefresh(false)
+            return
+        }
         page = 1
         getInstance().searchPost(keyword!!, forumName!!, false, page, 30).enqueue(object : Callback<SearchPostBean> {
             override fun onResponse(call: Call<SearchPostBean>, response: Response<SearchPostBean>) {
@@ -108,6 +116,10 @@ class SearchPostActivity : BaseActivity() {
     }
 
     private fun loadMore() {
+        if (keyword == null || keyword == null) {
+            refreshLayout.finishLoadMore(false)
+            return
+        }
         getInstance().searchPost(keyword!!, forumName!!, false, page + 1, 30).enqueue(object : Callback<SearchPostBean> {
             override fun onResponse(call: Call<SearchPostBean>, response: Response<SearchPostBean>) {
                 val data = response.body()

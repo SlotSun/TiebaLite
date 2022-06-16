@@ -13,16 +13,17 @@ import androidx.gridlayout.widget.GridLayout;
 
 import com.bumptech.glide.Glide;
 import com.huanchengfly.tieba.post.BaseApplication;
+import com.huanchengfly.tieba.post.ExtensionsKt;
 import com.huanchengfly.tieba.post.R;
 import com.huanchengfly.tieba.post.api.models.ForumPageBean;
 import com.huanchengfly.tieba.post.api.models.PersonalizedBean;
 import com.huanchengfly.tieba.post.components.dialogs.DislikeDialog;
 import com.huanchengfly.tieba.post.models.PhotoViewBean;
+import com.huanchengfly.tieba.post.utils.DateTimeUtils;
 import com.huanchengfly.tieba.post.utils.DisplayUtil;
 import com.huanchengfly.tieba.post.utils.ImageUtil;
 import com.huanchengfly.tieba.post.utils.NavigationHelper;
 import com.huanchengfly.tieba.post.utils.SharedPreferencesUtil;
-import com.huanchengfly.tieba.post.utils.TimeUtils;
 import com.huanchengfly.tieba.post.utils.Util;
 import com.huanchengfly.tieba.post.widgets.MarkedImageView;
 import com.huanchengfly.tieba.post.widgets.VideoPlayerStandard;
@@ -69,11 +70,19 @@ public class PersonalizedFeedAdapter extends MultiBaseAdapter<PersonalizedBean.T
     }
 
     private int getMaxWidth() {
-        return BaseApplication.ScreenInfo.EXACT_SCREEN_WIDTH - DisplayUtil.dp2px(mContext, 56);
+        int maxWidth = BaseApplication.ScreenInfo.EXACT_SCREEN_WIDTH - DisplayUtil.dp2px(mContext, 56);
+        if (ExtensionsKt.isTablet(mContext)) {
+            if (ExtensionsKt.isLandscape(mContext.getResources().getConfiguration())) {
+                return maxWidth / 3;
+            } else {
+                return maxWidth / 2;
+            }
+        }
+        return maxWidth;
     }
 
     private int getGridHeight() {
-        return (BaseApplication.ScreenInfo.EXACT_SCREEN_WIDTH - DisplayUtil.dp2px(mContext, 56)) / 3;
+        return getMaxWidth() / 3;
     }
 
     private RelativeLayout.LayoutParams getLayoutParams(RelativeLayout.LayoutParams layoutParams) {
@@ -205,7 +214,7 @@ public class PersonalizedFeedAdapter extends MultiBaseAdapter<PersonalizedBean.T
         }
         TextView timeTextView = viewHolder.getView(R.id.forum_item_user_time);
         String relativeTime =
-                TimeUtils.getRelativeTimeString(mContext, threadBean.getLastTimeInt());
+                DateTimeUtils.getRelativeTimeString(mContext, threadBean.getLastTimeInt());
         if (!TextUtils.isEmpty(threadBean.getForumName())) {
             timeTextView.setText(
                     mContext.getString(

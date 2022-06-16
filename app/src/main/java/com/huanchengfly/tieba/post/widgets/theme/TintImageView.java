@@ -10,11 +10,12 @@ import android.util.AttributeSet;
 import androidx.appcompat.widget.AppCompatImageView;
 
 import com.huanchengfly.tieba.post.R;
+import com.huanchengfly.tieba.post.interfaces.BackgroundTintable;
 import com.huanchengfly.tieba.post.ui.theme.interfaces.Tintable;
 import com.huanchengfly.tieba.post.ui.theme.utils.ColorStateListUtils;
 
 @SuppressLint("CustomViewStyleable")
-public class TintImageView extends AppCompatImageView implements Tintable {
+public class TintImageView extends AppCompatImageView implements Tintable, BackgroundTintable {
     private int mTintListResId;
     private int mBackgroundTintResId;
 
@@ -63,6 +64,17 @@ public class TintImageView extends AppCompatImageView implements Tintable {
 
     @Override
     public void tint() {
+        applyTintColor();
+    }
+
+    @Override
+    public int getBackgroundTintResId() {
+        return mBackgroundTintResId;
+    }
+
+    @Override
+    public void setBackgroundTintResId(int resId) {
+        mBackgroundTintResId = resId;
         applyTintColor();
     }
 }

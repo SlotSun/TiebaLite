@@ -3,7 +3,15 @@
     <declare-styleable name="Theme">
         <attr name="colorPrimary" format="color" />
         <attr name="colorAccent" format="color" />
+        <attr name="colorOnAccent" format="color" />
+        <attr name="colorToolbar" format="color" />
         <attr name="colorToolbarItem" format="color" />
+        <attr name="color_toolbar_item_secondary" format="color" />
+        <attr name="colorToolbarItemActive" format="color" />
+        <attr name="colorToolbarBar" format="color" />
+        <attr name="colorOnToolbarBar" format="color" />
+        <attr name="colorNavBarSurface" format="color" />
+        <attr name="colorOnNavBarSurface" format="color" />
         <attr name="colorText" format="color" />
         <attr name="colorTextOnPrimary" format="color" />
         <attr name="colorTextSecondary" format="color" />
@@ -12,23 +20,20 @@
         <attr name="colorWindowBackground" format="color" />
         <attr name="colorUnselected" format="color" />
         <attr name="colorNavBar" format="color" />
-        <attr name="colorToolbar" format="color" />
-        <attr name="colorToolbarItemActive" format="color" />
         <attr name="colorFloorCard" format="color" />
         <attr name="colorCard" format="color" />
         <attr name="colorDivider" format="color" />
         <attr name="shadow_color" format="color" />
-        <attr name="color_toolbar_item_secondary" format="color" />
         <attr name="color_swipe_refresh_layout_background" format="color" />
     </declare-styleable>
 
     <declare-styleable name="ShadowLayout">
-        <attr name="shadow_layout_color" format="color"/>
-        <attr name="shadow_layout_background_color" format="color"/>
-        <attr name="shadow_layout_offsetX" format="dimension"/>
-        <attr name="shadow_layout_offsetY" format="dimension"/>
-        <attr name="shadow_layout_blur" format="dimension"/>
-        <attr name="shadow_layout_radius" format="dimension"/>
+        <attr name="shadow_layout_color" format="color" />
+        <attr name="shadow_layout_background_color" format="color" />
+        <attr name="shadow_layout_offsetX" format="dimension" />
+        <attr name="shadow_layout_offsetY" format="dimension" />
+        <attr name="shadow_layout_blur" format="dimension" />
+        <attr name="shadow_layout_radius" format="dimension" />
     </declare-styleable>
 
     <declare-styleable name="TintTabLayout">
@@ -43,6 +48,16 @@
         <attr name="backgroundTint" />
         <attr name="radioButtonTint" format="color" />
         <attr name="tint" />
+    </declare-styleable>
+
+    <declare-styleable name="LoadMoreFooter">
+        <attr name="backgroundTint" />
+        <attr name="radius" format="dimension" />
+        <attr name="footerSpinnerStyle" format="enum">
+            <enum name="scale" value="0" />
+            <enum name="translate" value="1" />
+            <enum name="fixedBehind" value="2" />
+        </attr>
     </declare-styleable>
 
     <declare-styleable name="TintView">
@@ -72,11 +87,25 @@
         <attr name="itemTextTintList" format="color" />
     </declare-styleable>
 
+    <declare-styleable name="TintNavigationRailView">
+        <attr name="backgroundTint" />
+        <attr name="itemIconTintList" />
+        <attr name="itemTextTintList" />
+    </declare-styleable>
+
     <declare-styleable name="TintToolbar">
         <attr name="toolbarBackgroundTint" format="color" />
         <attr name="itemTint" format="color" />
         <attr name="secondaryItemTint" format="color" />
         <attr name="activeItemTint" format="color" />
+    </declare-styleable>
+
+    <declare-styleable name="MyToolbar">
+        <attr name="navigationButtonGravity">
+            <flag name="center_vertical" value="0x10" />
+            <flag name="top" value="0x30" />
+            <flag name="bottom" value="0x50" />
+        </attr>
     </declare-styleable>
 
     <declare-styleable name="TintSwitch">
@@ -88,22 +117,6 @@
     <declare-styleable name="TintMaterialCardView">
         <attr name="materialCardBackgroundTint" format="color" />
         <attr name="strokeColor" format="color" />
-    </declare-styleable>
-
-    <declare-styleable name="TintSuperTextView">
-        <attr name="superTextViewBackgroundTint" format="color" />
-        <attr name="leftTextColor" format="color" />
-        <attr name="leftTopTextColor" format="color" />
-        <attr name="leftBottomTextColor" format="color" />
-        <attr name="centerTextColor" format="color" />
-        <attr name="centerTopTextColor" format="color" />
-        <attr name="centerBottomTextColor" format="color" />
-        <attr name="rightTextColor" format="color" />
-        <attr name="rightTopTextColor" format="color" />
-        <attr name="rightBottomTextColor" format="color" />
-        <attr name="dividerLineColor" format="color" />
-        <attr name="leftIconTint" format="color" />
-        <attr name="rightIconTint" format="color" />
     </declare-styleable>
 
     <declare-styleable name="TintSeekbar">
@@ -139,7 +152,7 @@
 
     <declare-styleable name="MyViewPager">
         <attr name="orientation" />
-        <attr format="boolean" name="can_scroll" />
+        <attr name="can_scroll" format="boolean" />
     </declare-styleable>
 
     <declare-styleable name="TintEditText">
@@ -150,6 +163,18 @@
     <declare-styleable name="TintTextInputEditText">
         <attr name="textColor" />
         <attr name="textColorHint" format="color" />
+    </declare-styleable>
+
+    <declare-styleable name="TintCollapsingToolbarLayout">
+        <attr name="textColor" />
+    </declare-styleable>
+
+    <declare-styleable name="RulerSeekBar">
+        <attr name="rulerColor" format="color" />
+        <attr name="rulerSize" format="dimension" />
+        <attr name="rulerCount" format="integer" />
+        <attr name="rulerShowTopOfThumb" format="boolean" />
+        <attr name="rulerOnEdge" format="boolean" />
     </declare-styleable>
 
     <declare-styleable name="ScrollCollapsingToolbarLayout">

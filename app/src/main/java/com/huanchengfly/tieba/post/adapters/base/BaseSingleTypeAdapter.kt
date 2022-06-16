@@ -1,19 +1,20 @@
 package com.huanchengfly.tieba.post.adapters.base
 
 import android.content.Context
-import android.view.View
 import android.view.ViewGroup
-import com.alibaba.android.vlayout.LayoutHelper
 import com.huanchengfly.tieba.post.components.MyViewHolder
 
 abstract class BaseSingleTypeAdapter<Item>(
-        context: Context
+    context: Context,
+    items: List<Item>? = null
 ) : BaseAdapter<Item>(
-        context
+    context,
+    items
 ) {
     protected abstract fun getItemLayoutId(): Int
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MyViewHolder = MyViewHolder(context, getItemLayoutId())
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MyViewHolder =
+        MyViewHolder(context, getItemLayoutId(), parent)
 
     override fun onBindViewHolder(holder: MyViewHolder, position: Int) {
         holder.setItemOnClickListener {

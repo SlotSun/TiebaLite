@@ -1,14 +1,26 @@
 package com.huanchengfly.tieba.post
 
+import android.animation.LayoutTransition
 import android.app.Activity
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.res.ColorStateList
+import android.content.res.Configuration
+import android.content.res.Configuration.SCREENLAYOUT_SIZE_MASK
 import android.os.Build
+import android.view.View
+import android.view.ViewGroup
 import android.widget.Toast
 import androidx.annotation.ColorRes
+import androidx.appcompat.content.res.AppCompatResources
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import com.huanchengfly.tieba.post.utils.GsonUtil
 import com.huanchengfly.tieba.post.utils.MD5Util
+
 
 fun Float.dpToPx(): Int =
         dpToPxFloat().toInt()
@@ -33,16 +45,21 @@ fun Int.pxToDp(): Int = this.toFloat().pxToDp()
 
 fun Int.pxToSp(): Int = this.toFloat().pxToSp()
 
+inline fun <reified Data> String.fromJson(): Data {
+    val type = object : TypeToken<Data>() {}.type
+    return GsonUtil.getGson().fromJson(this, type)
+}
+
 fun Any.toJson(): String = Gson().toJson(this)
 
 fun String.toMD5(): String = MD5Util.toMd5(this)
 
 fun Context.getColorCompat(@ColorRes id: Int): Int {
-    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-        resources.getColor(id, theme)
-    } else {
-        resources.getColor(id)
-    }
+    return ContextCompat.getColor(this, id)
+}
+
+fun Context.getColorStateListCompat(id: Int): ColorStateList {
+    return AppCompatResources.getColorStateList(this, id)
 }
 
 inline fun <reified T : Activity> Context.goToActivity() {
@@ -65,6 +82,43 @@ fun Context.toastShort(text: String) {
     Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
 }
 
-fun Context.toastShort(resId: Int) {
-    Toast.makeText(this, resId, Toast.LENGTH_SHORT).show()
+fun Context.toastShort(resId: Int, vararg args: Any) {
+    Toast.makeText(this, getString(resId, *args), Toast.LENGTH_SHORT).show()
+}
+
+fun ViewGroup.enableChangingLayoutTransition() {
+    this.layoutTransition = LayoutTransition()
+    this.layoutTransition.enableTransitionType(LayoutTransition.CHANGING)
+}
+
+fun View.getLocationInWindow(): IntArray {
+    return IntArray(2).apply { getLocationInWindow(this) }
+}
+
+val Configuration.isPortrait: Boolean
+    get() = orientation == Configuration.ORIENTATION_PORTRAIT
+
+val Configuration.isLandscape: Boolean
+    get() = orientation == Configuration.ORIENTATION_LANDSCAPE
+
+val Configuration.isTablet: Boolean
+    get() = (screenLayout and SCREENLAYOUT_SIZE_MASK) >= Configuration.SCREENLAYOUT_SIZE_LARGE
+
+val Context.isTablet: Boolean
+    get() = resources.configuration.isTablet
+
+fun pendingIntentFlagMutable(): Int {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        PendingIntent.FLAG_MUTABLE
+    } else {
+        0
+    }
+}
+
+fun pendingIntentFlagImmutable(): Int {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        PendingIntent.FLAG_IMMUTABLE
+    } else {
+        0
+    }
 }

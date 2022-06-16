@@ -1,10 +1,14 @@
 package com.huanchengfly.tieba.post.fragments
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.DialogInterface
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
 import android.view.View
 import android.widget.Toast
 import androidx.core.content.ContextCompat
@@ -16,16 +20,13 @@ import com.google.android.material.snackbar.Snackbar
 import com.huanchengfly.tieba.post.R
 import com.huanchengfly.tieba.post.activities.BlockListActivity
 import com.huanchengfly.tieba.post.activities.LoginActivity
-import com.huanchengfly.tieba.post.api.LiteApi.Companion.instance
-import com.huanchengfly.tieba.post.api.interfaces.CommonAPICallback
-import com.huanchengfly.tieba.post.api.models.NewUpdateBean
 import com.huanchengfly.tieba.post.components.prefs.TimePickerPreference
 import com.huanchengfly.tieba.post.fragments.preference.PreferencesFragment
 import com.huanchengfly.tieba.post.models.database.Account
 import com.huanchengfly.tieba.post.models.database.Block
+import com.huanchengfly.tieba.post.toastShort
 import com.huanchengfly.tieba.post.ui.theme.utils.ThemeUtils
 import com.huanchengfly.tieba.post.utils.*
-import java.util.*
 
 class SettingsFragment : PreferencesFragment() {
     private var loginInfo: Account? = null
@@ -34,9 +35,21 @@ class SettingsFragment : PreferencesFragment() {
         refresh()
     }
 
+    //忽略电池优化
+    private fun ignoreBatteryOptimization() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val powerManager = attachContext.getSystemService(Context.POWER_SERVICE) as PowerManager
+            if (!powerManager.isIgnoringBatteryOptimizations(attachContext.packageName)) {
+                val intent = Intent(ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                intent.data = Uri.parse("package:${attachContext.packageName}")
+                startActivity(intent)
+            }
+        }
+    }
+
     private fun refresh() {
         loginInfo = AccountUtil.getLoginInfo(attachContext)
-        val accounts = AccountUtil.getAllAccounts()
+        val accounts = AccountUtil.allAccounts
         val usernameList: MutableList<String> = ArrayList()
         val idList: MutableList<String> = ArrayList()
         for (account in accounts) {
@@ -59,23 +72,62 @@ class SettingsFragment : PreferencesFragment() {
         preferenceManager.sharedPreferencesName = "settings"
         addPreferencesFromResource(R.xml.preferences)
         val accountsPreference = findPreference<ListPreference>("switch_account")
-        accountsPreference!!.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _: Preference?, newValue: Any? ->
-            if (AccountUtil.switchUser(attachContext, Integer.valueOf((newValue as String?)!!))) {
-                refresh()
-                Toast.makeText(attachContext, R.string.toast_switch_success, Toast.LENGTH_SHORT).show()
+        accountsPreference!!.onPreferenceChangeListener =
+            Preference.OnPreferenceChangeListener { _: Preference?, newValue: Any? ->
+                if (AccountUtil.switchUser(
+                        attachContext,
+                        Integer.valueOf((newValue as String?)!!)
+                    )
+                ) {
+                    refresh()
+                    Toast.makeText(attachContext, R.string.toast_switch_success, Toast.LENGTH_SHORT)
+                        .show()
+                }
+                false
             }
-            false
-        }
-        findPreference<Preference>("copy_bduss")!!.onPreferenceClickListener = Preference.OnPreferenceClickListener {
-            val account = AccountUtil.getLoginInfo(attachContext)
-            if (account != null) {
-                TiebaUtil.copyText(attachContext, account.bduss)
+        findPreference<Preference>("ignore_battery_optimization")?.let {
+            val powerManager = attachContext.getSystemService(Context.POWER_SERVICE) as PowerManager
+            it.onPreferenceClickListener = Preference.OnPreferenceClickListener {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    if (!powerManager.isIgnoringBatteryOptimizations(attachContext.packageName)) {
+                        ignoreBatteryOptimization()
+                    } else {
+                        attachContext.toastShort(R.string.toast_ignore_battery_optimization_already)
+                    }
+                }
+                true
             }
-            true
+            it.isEnabled =
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !powerManager.isIgnoringBatteryOptimizations(
+                    attachContext.packageName
+                )
+            it.setSummaryProvider {
+                when {
+                    Build.VERSION.SDK_INT < Build.VERSION_CODES.M -> {
+                        attachContext.getString(R.string.summary_battery_optimization_old_android_version)
+                    }
+                    powerManager.isIgnoringBatteryOptimizations(attachContext.packageName) -> {
+                        attachContext.getString(R.string.summary_battery_optimization_ignored)
+                    }
+                    else -> {
+                        attachContext.getString(R.string.summary_ignore_battery_optimization)
+                    }
+                }
+            }
         }
-        findPreference<Preference>("exit_account")!!.isEnabled = AccountUtil.isLoggedIn(attachContext)
-        findPreference<Preference>("exit_account")!!.onPreferenceClickListener = Preference.OnPreferenceClickListener {
-            DialogUtil.build(attachContext)
+        findPreference<Preference>("copy_bduss")!!.onPreferenceClickListener =
+            Preference.OnPreferenceClickListener {
+                val account = AccountUtil.getLoginInfo(attachContext)
+                if (account != null) {
+                    TiebaUtil.copyText(attachContext, account.bduss)
+                }
+                true
+            }
+        findPreference<Preference>("exit_account")!!.isEnabled =
+            AccountUtil.isLoggedIn(attachContext)
+        findPreference<Preference>("exit_account")!!.onPreferenceClickListener =
+            Preference.OnPreferenceClickListener {
+                DialogUtil.build(attachContext)
                     .setMessage(R.string.title_dialog_exit_account)
                     .setPositiveButton(R.string.button_sure_default) { _: DialogInterface?, _: Int ->
                         AccountUtil.exit(attachContext)
@@ -150,32 +202,37 @@ class SettingsFragment : PreferencesFragment() {
             true
         }
         val aboutPreference = findPreference<Preference>("about")
-        instance!!.newCheckUpdate(object : CommonAPICallback<NewUpdateBean?> {
-            override fun onSuccess(data: NewUpdateBean?) {
-                if (data != null) {
-                    if (data.isHasUpdate == true) {
-                        aboutPreference!!.summary = attachContext.getString(R.string.tip_new_version, data.result?.versionName)
-                    }
-                }
-            }
-
-            override fun onFailure(code: Int, error: String) {}
-        })
         val useCustomTabs = findPreference<SwitchPreference>("use_custom_tabs")
         useCustomTabs!!.isEnabled = !preferenceManager.sharedPreferences.getBoolean("use_webview", true)
         findPreference<Preference>("use_webview")!!.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _: Preference?, newValue: Any? ->
-            useCustomTabs.isEnabled != newValue as Boolean
+            useCustomTabs.isEnabled = !(newValue as Boolean)
             true
         }
         initListPreference("dark_theme", "dark")
         aboutPreference!!.summary = getString(R.string.tip_about, VersionUtil.getVersionName(attachContext))
         refresh()
+        /*
+        try {
+            val preferenceGroupClazz = PreferenceGroup::class.java
+            val preferencesField = preferenceGroupClazz.getDeclaredField("mPreferences")
+            preferencesField.isAccessible = true
+            val preferencesList = preferencesField.get(preferenceScreen) as List<Preference>
+            attachContext.toastShort("${preferencesList.size}")
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        */
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        setDivider(ThemeUtils.tintDrawable(ContextCompat.getDrawable(attachContext, R.drawable.drawable_divider_8dp), ThemeUtils.getColorByAttr(attachContext, R.attr.colorDivider)))
-        setDividerHeight(DisplayUtil.dp2px(attachContext, 8f))
+        setDivider(
+                ThemeUtils.tintDrawable(
+                        ContextCompat.getDrawable(attachContext, R.drawable.drawable_divider_8dp),
+                        ThemeUtils.getColorById(attachContext, R.color.default_color_window_background)
+                )
+        )
+        setDividerHeight(0)
     }
 
     private fun initSwitchPreference(key: String, defValue: Boolean = false) {

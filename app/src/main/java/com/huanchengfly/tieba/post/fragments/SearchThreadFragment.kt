@@ -25,6 +25,7 @@ import com.huanchengfly.tieba.post.api.SearchThreadOrder
 import com.huanchengfly.tieba.post.api.TiebaApi
 import com.huanchengfly.tieba.post.api.models.SearchThreadBean
 import com.huanchengfly.tieba.post.dpToPx
+import com.huanchengfly.tieba.post.getLocationInWindow
 import com.huanchengfly.tieba.post.interfaces.ISearchFragment
 import com.huanchengfly.tieba.post.utils.ThemeUtil
 import com.scwang.smart.refresh.layout.SmartRefreshLayout
@@ -109,8 +110,8 @@ class SearchThreadFragment : BaseFragment(), ISearchFragment, NewSearchActivity.
                 attachContext,
                 titleResId = getSearchFilterTitleResId(filter)
         ).apply {
-            setBackgroundResource(R.drawable.bg_top_radius_8dp)
-            backgroundTintList = R.color.default_color_card
+            setHeaderBackgroundResource(R.drawable.bg_top_radius_8dp)
+            headerBackgroundTintList = R.color.default_color_card
             topMargin = attachContext.resources.getDimensionPixelSize(R.dimen.card_margin)
         })
         delegateAdapter.addAdapter(searchThreadAdapter!!.apply {
@@ -196,9 +197,7 @@ class SearchThreadFragment : BaseFragment(), ISearchFragment, NewSearchActivity.
     }
 
     override fun openFilter(context: Context, view: View, onClose: () -> Unit) {
-        val tabLocationArray = IntArray(2).apply {
-            view.getLocationInWindow(this)
-        }
+        val tabLocationArray = view.getLocationInWindow()
         FilterPopupWindow(context, order, filter).apply {
             onChangedListener = object : FilterPopupWindow.OnChangedListener {
                 override fun onChanged(popup: FilterPopupWindow, order: SearchThreadOrder, filter: SearchThreadFilter) {
