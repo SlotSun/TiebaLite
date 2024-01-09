@@ -14,16 +14,16 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.huanchengfly.tieba.post.ExtensionsKt;
 import com.huanchengfly.tieba.post.R;
-import com.huanchengfly.tieba.post.ui.theme.interfaces.Tintable;
-import com.huanchengfly.tieba.post.ui.theme.utils.ThemeUtils;
+import com.huanchengfly.tieba.post.ui.common.theme.interfaces.Tintable;
+import com.huanchengfly.tieba.post.ui.common.theme.utils.ThemeUtils;
 import com.huanchengfly.tieba.post.utils.DisplayUtil;
 
 public class ForumDivider extends RecyclerView.ItemDecoration implements Tintable {
     public static final String TAG = "ForumDivider";
 
     private Drawable mDivider;
-    private int mOrientation;
-    private int mDividerHeight;
+    private final int mOrientation;
+    private final int mDividerHeight;
 
     public ForumDivider(Context context, int orientation) {
         if (orientation != LinearLayoutManager.VERTICAL && orientation != LinearLayoutManager.HORIZONTAL) {
@@ -38,13 +38,8 @@ public class ForumDivider extends RecyclerView.ItemDecoration implements Tintabl
     @Override
     public void getItemOffsets(@NonNull Rect outRect, @NonNull View view, @NonNull RecyclerView parent, @NonNull RecyclerView.State state) {
         super.getItemOffsets(outRect, view, parent, state);
-        int position = parent.getChildAdapterPosition(view) - 1;
         if (ExtensionsKt.isTablet(parent.getContext())) {
-            if (position % 2 == 0) {
-                outRect.set(0, 0, mDividerHeight / 2, mDividerHeight);
-            } else {
-                outRect.set(mDividerHeight / 2, 0, 0, mDividerHeight);
-            }
+            outRect.set(mDividerHeight / 2, 0, mDividerHeight / 2, mDividerHeight);
         } else if (mOrientation == LinearLayoutManager.VERTICAL) {
             outRect.set(0, 0, 0, mDividerHeight);
         } else {

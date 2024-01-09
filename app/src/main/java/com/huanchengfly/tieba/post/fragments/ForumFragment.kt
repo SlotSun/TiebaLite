@@ -20,16 +20,14 @@ import com.huanchengfly.tieba.post.api.TiebaApi
 import com.huanchengfly.tieba.post.api.models.ForumPageBean
 import com.huanchengfly.tieba.post.api.retrofit.doIfFailure
 import com.huanchengfly.tieba.post.api.retrofit.doIfSuccess
-import com.huanchengfly.tieba.post.api.retrofit.exception.TiebaException
+import com.huanchengfly.tieba.post.api.retrofit.exception.getErrorCode
+import com.huanchengfly.tieba.post.api.retrofit.exception.getErrorMessage
 import com.huanchengfly.tieba.post.components.dividers.ForumDivider
 import com.huanchengfly.tieba.post.interfaces.OnSwitchListener
 import com.huanchengfly.tieba.post.interfaces.Refreshable
 import com.huanchengfly.tieba.post.interfaces.ScrollTopable
 import com.huanchengfly.tieba.post.utils.Util
 import com.scwang.smart.refresh.layout.SmartRefreshLayout
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
 
 class ForumFragment : BaseFragment(), Refreshable, OnSwitchListener, ScrollTopable {
     private var page = 1
@@ -42,8 +40,9 @@ class ForumFragment : BaseFragment(), Refreshable, OnSwitchListener, ScrollTopab
     private var forumName: String? = null
     private var mDataBean: ForumPageBean? = null
 
+    @JvmField
     @BindView(R.id.recycler_view)
-    lateinit var mRecyclerView: RecyclerView
+    var mRecyclerView: RecyclerView? = null
 
     @JvmField
     @BindView(R.id.refresh)
@@ -80,6 +79,7 @@ class ForumFragment : BaseFragment(), Refreshable, OnSwitchListener, ScrollTopab
         super.onSaveInstanceState(outState)
     }
 
+    @Deprecated("Deprecated in Java")
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         if (savedInstanceState != null) {
             forumName = savedInstanceState.getString(PARAM_FORUM_NAME)
@@ -150,7 +150,7 @@ class ForumFragment : BaseFragment(), Refreshable, OnSwitchListener, ScrollTopab
         super.onViewCreated(view, savedInstanceState)
         refreshLayout?.setOnRefreshListener { refresh() }
         refreshLayout?.setOnLoadMoreListener { loadMore() }
-        mRecyclerView.apply {
+        mRecyclerView?.apply {
             layoutManager = virtualLayoutManager
             adapter = delegateAdapter
             addItemDecoration(ForumDivider(attachContext, RecyclerView.VERTICAL))
@@ -197,50 +197,49 @@ class ForumFragment : BaseFragment(), Refreshable, OnSwitchListener, ScrollTopab
         delegateAdapter.clear()
         delegateAdapter.notifyDataSetChanged()
         page = 1
-        TiebaApi.getInstance().forumPage(forumName!!, page, sortType, classifyId)
-            .enqueue(object : Callback<ForumPageBean> {
-                override fun onFailure(call: Call<ForumPageBean>, t: Throwable) {
-                    var errorCode = -1
-                    if (t is TiebaException) {
-                        errorCode = t.code
-                    }
+        launchIO {
+            TiebaApi.getInstance()
+                .forumPageAsync(forumName!!, page, sortType, classifyId)
+                .doIfSuccess {
                     if (!isGood) {
                         if (attachContext is OnRefreshedListener) {
-                            (attachContext as OnRefreshedListener).onFailure(errorCode, t.message)
-                        }
-                    }
-                    refreshLayout?.finishRefresh(false)
-                    if (errorCode == -1) {
-                        Util.showNetworkErrorSnackbar(mRecyclerView) {
-                            refreshLayout?.autoRefresh()
-                        }
-                        return
-                    }
-                    Toast.makeText(
-                        attachContext,
-                        attachContext.getString(R.string.toast_error, errorCode, t.message),
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-
-                override fun onResponse(
-                    call: Call<ForumPageBean>,
-                    response: Response<ForumPageBean>
-                ) {
-                    val forumPageBean = response.body()!!
-                    if (!isGood) {
-                        if (attachContext is OnRefreshedListener) {
-                            (attachContext as OnRefreshedListener).onSuccess(forumPageBean)
+                            (attachContext as OnRefreshedListener).onSuccess(it)
                         }
                     }
                     refreshLayout?.finishRefresh()
-                    mDataBean = forumPageBean
-                    pageSize = forumPageBean.page?.pageSize?.toInt()!!
-                    forumAdapter.setData(forumPageBean)
-                    refreshLayout?.setNoMoreData(mDataBean!!.page?.hasMore == "0")
+                    mDataBean = it
+                    pageSize = it.page?.pageSize?.toInt()!!
+                    forumAdapter.setData(it)
+                    refreshLayout?.setNoMoreData(it.page?.hasMore == "0")
                     reloadAdapters()
                 }
-            })
+                .doIfFailure {
+                    if (!isGood) {
+                        if (attachContext is OnRefreshedListener) {
+                            (attachContext as OnRefreshedListener).onFailure(
+                                it.getErrorCode(),
+                                it.getErrorMessage()
+                            )
+                        }
+                    }
+                    refreshLayout?.finishRefresh(false)
+                    if (it.getErrorCode() == -1) {
+                        Util.showNetworkErrorSnackbar(mRecyclerView) {
+                            refreshLayout?.autoRefresh()
+                        }
+                    } else {
+                        Toast.makeText(
+                            attachContext,
+                            attachContext.getString(
+                                R.string.toast_error,
+                                it.getErrorCode(),
+                                it.getErrorMessage()
+                            ),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+        }
     }
 
     override fun onRefresh() {
@@ -255,7 +254,9 @@ class ForumFragment : BaseFragment(), Refreshable, OnSwitchListener, ScrollTopab
     }
 
     override fun scrollToTop() {
-        virtualLayoutManager.scrollToPosition(0)
+        mRecyclerView?.post {
+            virtualLayoutManager.scrollToPosition(0)
+        }
     }
 
     interface OnRefreshedListener {

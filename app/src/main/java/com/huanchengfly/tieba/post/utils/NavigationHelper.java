@@ -27,7 +27,7 @@ import com.huanchengfly.tieba.post.activities.UserActivity;
 import com.huanchengfly.tieba.post.activities.WebViewActivity;
 import com.huanchengfly.tieba.post.components.dialogs.PermissionDialog;
 import com.huanchengfly.tieba.post.models.PermissionBean;
-import com.huanchengfly.tieba.post.ui.theme.utils.ThemeUtils;
+import com.huanchengfly.tieba.post.ui.common.theme.utils.ThemeUtils;
 
 import java.net.URISyntaxException;
 import java.util.List;
@@ -43,9 +43,9 @@ public final class NavigationHelper {
     public static final int ACTION_THREAD_POST = 6;
     public static final int ACTION_USER = 7;
     public static final int ACTION_USER_BY_UID = 8;
-    private Context mContext;
+    private final Context mContext;
     private Activity activity;
-    private String activityName;
+    private final String activityName;
     private boolean isActivityContext;
 
     private NavigationHelper(Context context) {
@@ -186,6 +186,7 @@ public final class NavigationHelper {
         }
         if (path.equalsIgnoreCase("/mo/q/checkurl")) {
             url = uri.getQueryParameter("url");
+            url = url.replace("http://https://", "https://");
             uri = Uri.parse(url);
             host = uri.getHost();
             path = uri.getPath();
@@ -237,11 +238,13 @@ public final class NavigationHelper {
             if (!path.contains("android_asset")) {
                 if (!(activityName.startsWith("WebViewActivity") || activityName.startsWith("LoginActivity"))) {
                     boolean isTiebaLink = host.contains("tieba.baidu.com") || host.contains("wappass.baidu.com") || host.contains("ufosdk.baidu.com") || host.contains("m.help.baidu.com");
-                    if (isTiebaLink || SharedPreferencesUtil.get(mContext, SharedPreferencesUtil.SP_SETTINGS).getBoolean("use_webview", true)) {
+                    if (isTiebaLink ||
+                            AppPreferencesUtilsKt.getAppPreferences(mContext).getUseWebView()
+                    ) {
                         startActivity(new Intent(mContext, WebViewActivity.class).putExtra("url", url));
                         return true;
                     } else {
-                        if (SharedPreferencesUtil.get(mContext, SharedPreferencesUtil.SP_SETTINGS).getBoolean("use_custom_tabs", true)) {
+                        if (AppPreferencesUtilsKt.getAppPreferences(mContext).getUseCustomTabs()) {
                             CustomTabsIntent.Builder intentBuilder = new CustomTabsIntent.Builder()
                                     .setShowTitle(true)
                                     .setToolbarColor(ThemeUtils.getColorByAttr(mContext, R.attr.colorToolbar));
@@ -272,7 +275,7 @@ public final class NavigationHelper {
                         PackageManager pManager = mContext.getPackageManager();
                         appName = resolveInfo.loadLabel(pManager).toString();
                     } else {
-                        appName = mContext.getString(R.string.name_multiapp);
+                        appName = mContext.getString(R.string.name_multi_app);
                     }
                     new PermissionDialog(mContext,
                             new PermissionBean(PermissionDialog.CustomPermission.PERMISSION_START_APP,
@@ -300,7 +303,7 @@ public final class NavigationHelper {
                         PackageManager pManager = mContext.getPackageManager();
                         appName = resolveInfo.loadLabel(pManager).toString();
                     } else {
-                        appName = mContext.getString(R.string.name_multiapp);
+                        appName = mContext.getString(R.string.name_multi_app);
                     }
                     new PermissionDialog(mContext,
                             new PermissionBean(PermissionDialog.CustomPermission.PERMISSION_START_APP,

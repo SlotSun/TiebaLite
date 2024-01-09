@@ -186,9 +186,16 @@ class MessageFragment : BaseFragment(), Refreshable, OnTabSelectedListener,
                     } else {
                         adapter.addData(it)
                     }
-                    smartRefreshLayout.finishRefresh(true)
-                    if (it.page?.hasMore != "1") {
-                        smartRefreshLayout.finishRefreshWithNoMoreData()
+                    if (reload) {
+                        smartRefreshLayout.finishRefresh(true)
+                        if (it.page?.hasMore != "1") {
+                            smartRefreshLayout.finishRefreshWithNoMoreData()
+                        }
+                    } else {
+                        smartRefreshLayout.finishLoadMore(true)
+                        if (it.page?.hasMore != "1") {
+                            smartRefreshLayout.finishLoadMoreWithNoMoreData()
+                        }
                     }
                 }.doIfFailure {
                     if (reload) {
@@ -206,7 +213,7 @@ class MessageFragment : BaseFragment(), Refreshable, OnTabSelectedListener,
         }
 
         private fun loadMore() {
-            if (dataBean!!.page!!.hasMore == "1") {
+            if (dataBean?.page?.hasMore == "1") {
                 page += 1
                 load(false)
             } else {

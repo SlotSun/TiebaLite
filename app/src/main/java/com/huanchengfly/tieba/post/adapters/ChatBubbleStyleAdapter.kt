@@ -5,14 +5,15 @@ import android.content.Context
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.FrameLayout
 import com.huanchengfly.tieba.post.R
 import com.huanchengfly.tieba.post.adapters.ChatBubbleStyleAdapter.Bubble.Companion.POSITION_RIGHT
 import com.huanchengfly.tieba.post.adapters.base.BaseSingleTypeAdapter
 import com.huanchengfly.tieba.post.components.MyViewHolder
-import com.huanchengfly.tieba.post.widgets.theme.TintLinearLayout
-import com.huanchengfly.tieba.post.widgets.theme.TintTextView
+import com.huanchengfly.tieba.post.ui.widgets.theme.TintLinearLayout
+import com.huanchengfly.tieba.post.ui.widgets.theme.TintTextView
 
 class ChatBubbleStyleAdapter(
     context: Context,
@@ -55,17 +56,22 @@ class ChatBubbleStyleAdapter(
             }
         }
         viewHolder.setText(R.id.chat_bubble_text, item.text)
-        val customView = item.customViewBuilder?.invoke(context, item.position)
+        viewHolder.setVisibility(R.id.chat_bubble_text, item.text != null)
+        val customViewParent = viewHolder.getView<FrameLayout>(R.id.chat_bubble_custom_view)
+        val customView = item.customViewBuilder?.invoke(context, item.position, customViewParent)
         if (customView != null) {
-            viewHolder.getView<FrameLayout>(R.id.chat_bubble_custom_view)
+            customViewParent
                 .addView(customView, FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT))
+            customViewParent.visibility = View.VISIBLE
+        } else {
+            customViewParent.visibility = View.GONE
         }
     }
 
     data class Bubble(
-        val text: CharSequence,
+        val text: CharSequence? = null,
         val position: Int = POSITION_LEFT,
-        val customViewBuilder: ((context: Context, position: Int) -> View)? = null
+        val customViewBuilder: ((context: Context, position: Int, parent: ViewGroup) -> View)? = null
     ) {
         companion object {
             const val POSITION_LEFT = 0

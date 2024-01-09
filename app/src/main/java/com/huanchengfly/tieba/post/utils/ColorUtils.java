@@ -8,12 +8,7 @@ import androidx.annotation.IntRange;
 
 public final class ColorUtils {
     public static int getDarkerColor(@ColorInt int color) {
-        float[] hsv = new float[3];
-        Color.colorToHSV(color, hsv); // convert to hsv
-        // make darker
-        hsv[1] = hsv[1] + 0.1f; // more saturation
-        hsv[2] = hsv[2] - 0.1f; // less brightness
-        return Color.HSVToColor(hsv);
+        return getDarkerColor(color, 0.1f);
     }
 
     public static int getDarkerColor(@ColorInt int color, float i) {
@@ -22,6 +17,13 @@ public final class ColorUtils {
         // make darker
         hsv[1] = hsv[1] + i; // more saturation
         hsv[2] = hsv[2] - i; // less brightness
+        return Color.HSVToColor(hsv);
+    }
+
+    public static int setLuminance(@ColorInt int color, @FloatRange(from = 0f, to = 1f) float luminance) {
+        float[] hsv = new float[3];
+        Color.colorToHSV(color, hsv);
+        hsv[2] = luminance;
         return Color.HSVToColor(hsv);
     }
 

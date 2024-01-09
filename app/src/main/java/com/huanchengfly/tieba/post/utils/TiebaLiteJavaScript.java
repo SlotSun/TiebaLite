@@ -10,7 +10,7 @@ import android.widget.Toast;
 public class TiebaLiteJavaScript {
     public static final String TAG = "JsBridge";
 
-    private static Handler handler = new Handler();
+    private static final Handler handler = new Handler();
     public Context context;
     public WebView webView;
 
@@ -33,7 +33,7 @@ public class TiebaLiteJavaScript {
 
     @JavascriptInterface
     public String getTheme() {
-        return ThemeUtil.getTheme(context);
+        return ThemeUtil.getRawTheme();
     }
 
     @JavascriptInterface

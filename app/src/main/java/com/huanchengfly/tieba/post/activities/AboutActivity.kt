@@ -6,12 +6,12 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.RelativeLayout
 import androidx.appcompat.widget.Toolbar
+import com.huanchengfly.tieba.post.BuildConfig
 import com.huanchengfly.tieba.post.R
 import com.huanchengfly.tieba.post.toastShort
-import com.huanchengfly.tieba.post.ui.about.AboutPage
-import com.huanchengfly.tieba.post.ui.theme.utils.ThemeUtils
+import com.huanchengfly.tieba.post.ui.common.about.AboutPage
+import com.huanchengfly.tieba.post.ui.common.theme.utils.ThemeUtils
 import com.huanchengfly.tieba.post.utils.ThemeUtil
-import com.huanchengfly.tieba.post.utils.VersionUtil
 
 class AboutActivity : BaseActivity() {
     var lastClickTime: Long = 0
@@ -24,8 +24,8 @@ class AboutActivity : BaseActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         ThemeUtil.setTranslucentThemeBackground(findViewById(R.id.background))
-        val toolbar = findViewById(R.id.toolbar) as Toolbar
-        val mainView = findViewById(R.id.main) as RelativeLayout
+        val toolbar = findViewById<Toolbar>(R.id.toolbar)
+        val mainView = findViewById<RelativeLayout>(R.id.main)
         val headerView = View.inflate(this, R.layout.header_about, null)
         (headerView as ViewGroup).layoutTransition = LayoutTransition()
         setSupportActionBar(toolbar)
@@ -40,7 +40,7 @@ class AboutActivity : BaseActivity() {
             .addItem(
                 AboutPage.Item(
                     "当前版本",
-                    VersionUtil.getVersionName(this),
+                    BuildConfig.VERSION_NAME,
                     R.drawable.ic_round_info,
                     colorIcon
                 ).setOnClickListener {
@@ -49,13 +49,13 @@ class AboutActivity : BaseActivity() {
                     } else {
                         clickCount++
                     }
-                    if (clickCount > 5) {
-                        if (appPreferences.checkCIUpdate) {
-                            toastShort(R.string.toast_ci_version_disabled)
-                            appPreferences.checkCIUpdate = false
+                    if (clickCount >= 7) {
+                        if (appPreferences.showExperimentalFeatures) {
+                            toastShort(R.string.toast_experimental_features_disabled)
+                            appPreferences.showExperimentalFeatures = false
                         } else {
-                            toastShort(R.string.toast_ci_version_enabled)
-                            appPreferences.checkCIUpdate = true
+                            toastShort(R.string.toast_experimental_features_enabled)
+                            appPreferences.showExperimentalFeatures = true
                         }
                         clickCount = 0
                     }

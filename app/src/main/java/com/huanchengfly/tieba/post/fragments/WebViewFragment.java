@@ -38,6 +38,8 @@ import com.google.android.material.snackbar.Snackbar;
 import com.hjq.permissions.Permission;
 import com.huanchengfly.tieba.post.R;
 import com.huanchengfly.tieba.post.components.dialogs.PermissionDialog;
+import com.huanchengfly.tieba.post.interfaces.BackHandledInterface;
+import com.huanchengfly.tieba.post.interfaces.OnOverrideUrlLoadingListener;
 import com.huanchengfly.tieba.post.interfaces.OnReceivedTitleListener;
 import com.huanchengfly.tieba.post.interfaces.WebViewListener;
 import com.huanchengfly.tieba.post.models.PermissionBean;
@@ -56,7 +58,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Arrays;
 
 //TODO: 代码太烂，需要重写
-public class WebViewFragment extends BaseFragment implements DownloadListener {
+public class WebViewFragment extends BaseFragment implements DownloadListener, BackHandledInterface {
     public static final String TAG = WebViewFragment.class.getSimpleName();
     private static final String DEFAULT_TITLE = "";
     private final static int FILE_CHOOSER_RESULT_CODE = 1;
@@ -244,9 +246,9 @@ public class WebViewFragment extends BaseFragment implements DownloadListener {
         webSettings.setDisplayZoomControls(false);
         webSettings.setDomStorageEnabled(true);
         String appCachePath = getAttachContext().getCacheDir().getAbsolutePath();
-        webSettings.setAppCachePath(appCachePath);
+        //webSettings.setAppCachePath(appCachePath);
+        //webSettings.setAppCacheEnabled(true);
         webSettings.setAllowFileAccess(true);
-        webSettings.setAppCacheEnabled(true);
         webSettings.setDomStorageEnabled(true);
         webSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         mWebView.setWebChromeClient(new ChromeClient());
@@ -265,7 +267,7 @@ public class WebViewFragment extends BaseFragment implements DownloadListener {
     private void injectJavaScript() {
         if (mWebView == null) return;
         mWebView.evaluateJavascript(clipboardGuardJs, null);
-        String nowTheme = ThemeUtil.getTheme(getAttachContext());
+        String nowTheme = ThemeUtil.getRawTheme();
         String url = mWebView.getUrl();
         if (url == null || nowTheme == null) {
             return;
@@ -276,10 +278,8 @@ public class WebViewFragment extends BaseFragment implements DownloadListener {
                     mWebView.evaluateJavascript("tblite.init();tblite.theme.init('" + nowTheme + "');", null);
             });
         }
-        if (nowTheme.equalsIgnoreCase(ThemeUtil.THEME_AMOLED_DARK)) {
+        if (nowTheme.contains("dark")) {
             mWebView.evaluateJavascript(aNightJs, null);
-        } else if (nowTheme.equalsIgnoreCase(ThemeUtil.THEME_BLUE_DARK)) {
-            mWebView.evaluateJavascript(nightJs, null);
         }
     }
 
@@ -351,20 +351,34 @@ public class WebViewFragment extends BaseFragment implements DownloadListener {
                 ((WebViewListener) getAttachContext()).onPageStarted(view, url, favicon);
             }
             if (enableSwipeRefresh) swipeRefreshLayout.setRefreshing(true);
-            if (AccountUtil.isLoggedIn(getAttachContext()) && !activityName.startsWith("LoginActivity") && !activityName.startsWith("UpdateInfoActivity")) {
-                String cookieStr = AccountUtil.getBdussCookie(getAttachContext());
+            if (AccountUtil.isLoggedIn() && !activityName.startsWith("LoginActivity") && !activityName.startsWith("UpdateInfoActivity")) {
+                String cookieStr = AccountUtil.getBdussCookie();
                 CookieManager.getInstance().setCookie(url, cookieStr);
             }
         }
 
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-            return navigationHelper.interceptWebViewRequest(view, request);
+            boolean result = false;
+            if (getAttachContext() instanceof OnOverrideUrlLoadingListener) {
+                result = ((OnOverrideUrlLoadingListener) getAttachContext()).shouldOverrideUrlLoading(view, request.getUrl().toString());
+            }
+            if (!result) {
+                result = navigationHelper.interceptWebViewRequest(view, request);
+            }
+            return result;
         }
 
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, String url) {
-            return navigationHelper.interceptWebViewRequest(view, url);
+            boolean result = false;
+            if (getAttachContext() instanceof OnOverrideUrlLoadingListener) {
+                result = ((OnOverrideUrlLoadingListener) getAttachContext()).shouldOverrideUrlLoading(view, url);
+            }
+            if (!result) {
+                result = navigationHelper.interceptWebViewRequest(view, url);
+            }
+            return result;
         }
     }
 
@@ -377,12 +391,12 @@ public class WebViewFragment extends BaseFragment implements DownloadListener {
                 new PermissionDialog(getAttachContext(),
                         new PermissionBean(PermissionDialog.CustomPermission.PERMISSION_LOCATION,
                                 uri.getHost(),
-                                getAttachContext().getString(R.string.title_ask_permission, uri.getHost(), getAttachContext().getString(R.string.permission_name_location)),
+                                getAttachContext().getString(R.string.title_ask_permission, uri.getHost(), getAttachContext().getString(R.string.common_permission_location)),
                                 R.drawable.ic_round_location_on))
                         .setOnGrantedCallback(isForever -> {
                             PermissionUtils.INSTANCE.askPermission(
                                     getAttachContext(),
-                                    new PermissionUtils.Permission(
+                                    new PermissionUtils.PermissionData(
                                             Arrays.asList(Permission.ACCESS_COARSE_LOCATION, Permission.ACCESS_FINE_LOCATION),
                                             getAttachContext().getString(R.string.usage_webview_location_permission)
                                     ),

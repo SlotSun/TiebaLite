@@ -1,5 +1,9 @@
 package com.huanchengfly.tieba.post.adapters;
 
+import static com.huanchengfly.tieba.post.utils.ThemeUtil.THEME_CUSTOM;
+import static com.huanchengfly.tieba.post.utils.ThemeUtil.THEME_TRANSLUCENT;
+
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.ColorStateList;
@@ -11,30 +15,27 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.huanchengfly.tieba.post.BaseApplication;
+import com.huanchengfly.tieba.post.App;
 import com.huanchengfly.tieba.post.R;
 import com.huanchengfly.tieba.post.activities.TranslucentThemeActivity;
 import com.huanchengfly.tieba.post.components.MyViewHolder;
 import com.huanchengfly.tieba.post.components.dialogs.CustomThemeDialog;
 import com.huanchengfly.tieba.post.interfaces.OnItemClickListener;
-import com.huanchengfly.tieba.post.ui.theme.interfaces.ExtraRefreshable;
-import com.huanchengfly.tieba.post.ui.theme.utils.ThemeUtils;
+import com.huanchengfly.tieba.post.ui.common.theme.interfaces.ExtraRefreshable;
+import com.huanchengfly.tieba.post.ui.common.theme.utils.ThemeUtils;
 import com.huanchengfly.tieba.post.utils.ColorUtils;
 import com.huanchengfly.tieba.post.utils.ThemeUtil;
 
 import java.util.Arrays;
 import java.util.List;
 
-import static com.huanchengfly.tieba.post.utils.ThemeUtil.THEME_CUSTOM;
-import static com.huanchengfly.tieba.post.utils.ThemeUtil.THEME_TRANSLUCENT;
-
 public class ThemeAdapter extends RecyclerView.Adapter<MyViewHolder> implements View.OnClickListener {
     public static final int THEME_DAY = 0;
     public static final int THEME_NIGHT = 1;
 
-    private Context mContext;
-    private String[] themes;
-    private String[] themeNames;
+    private final Context mContext;
+    private final String[] themes;
+    private final String[] themeNames;
     private OnItemClickListener<String> onItemClickListener;
     private int selectedPosition;
 
@@ -43,12 +44,12 @@ public class ThemeAdapter extends RecyclerView.Adapter<MyViewHolder> implements 
         themes = mContext.getResources().getStringArray(R.array.theme_values);
         themeNames = mContext.getResources().getStringArray(R.array.themeNames);
         List<String> themeList = Arrays.asList(themes);
-        selectedPosition = themeList.indexOf(ThemeUtil.getTheme(mContext));
+        selectedPosition = themeList.indexOf(ThemeUtil.getRawTheme());
     }
 
     public void refresh() {
         List<String> themeList = Arrays.asList(themes);
-        selectedPosition = themeList.indexOf(ThemeUtil.getTheme(mContext));
+        selectedPosition = themeList.indexOf(ThemeUtil.getRawTheme());
         notifyDataSetChanged();
     }
 
@@ -68,16 +69,16 @@ public class ThemeAdapter extends RecyclerView.Adapter<MyViewHolder> implements 
     }
 
     private int getToolbarColor(String theme) {
-        if (ThemeUtil.THEME_WHITE.equals(theme) || ThemeUtil.isNightMode(theme)) {
-            return BaseApplication.ThemeDelegate.INSTANCE.getColorByAttr(mContext, R.attr.colorToolbar, theme);
+        if (ThemeUtil.isNightMode(theme)) {
+            return App.ThemeDelegate.INSTANCE.getColorByAttr(mContext, R.attr.colorToolbar, theme);
         } else if (ThemeUtil.isTranslucentTheme(theme)) {
-            return ColorUtils.alpha(BaseApplication.ThemeDelegate.INSTANCE.getColorByAttr(mContext, R.attr.colorPrimary, ThemeUtil.THEME_TRANSLUCENT_LIGHT), 150);
+            return ColorUtils.alpha(App.ThemeDelegate.INSTANCE.getColorByAttr(mContext, R.attr.colorPrimary, ThemeUtil.THEME_TRANSLUCENT_LIGHT), 150);
         }
-        return BaseApplication.ThemeDelegate.INSTANCE.getColorByAttr(mContext, R.attr.colorPrimary, theme);
+        return App.ThemeDelegate.INSTANCE.getColorByAttr(mContext, R.attr.colorPrimary, theme);
     }
 
     @Override
-    public void onBindViewHolder(@NonNull MyViewHolder holder, int position) {
+    public void onBindViewHolder(@NonNull MyViewHolder holder, @SuppressLint("RecyclerView") int position) {
         int type = getItemViewType(position);
         View previewView = holder.getView(R.id.theme_preview);
         TextView themeName = holder.getView(R.id.theme_name);
@@ -97,7 +98,7 @@ public class ThemeAdapter extends RecyclerView.Adapter<MyViewHolder> implements 
         }
         previewView.setBackgroundTintList(ColorStateList.valueOf(toolbarColor));
         holder.setItemOnClickListener(v -> {
-            int oldPosition = selectedPosition + 0;
+            int oldPosition = selectedPosition;
             selectedPosition = position;
             notifyItemChanged(oldPosition);
             notifyItemChanged(position);

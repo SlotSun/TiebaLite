@@ -2,6 +2,7 @@ package com.huanchengfly.tieba.post.activities
 
 import android.os.Build
 import android.os.Bundle
+import android.view.LayoutInflater
 import android.view.View
 import android.widget.ImageView
 import androidx.appcompat.widget.Toolbar
@@ -20,9 +21,11 @@ import com.huanchengfly.tieba.post.adapters.ChatBubbleStyleAdapter.Bubble.Compan
 import com.huanchengfly.tieba.post.components.MyLinearLayoutManager
 import com.huanchengfly.tieba.post.components.dialogs.CustomThemeDialog
 import com.huanchengfly.tieba.post.components.dividers.HorizontalSpacesDecoration
-import com.huanchengfly.tieba.post.ui.animation.addMaskAnimation
-import com.huanchengfly.tieba.post.ui.animation.addZoomAnimation
-import com.huanchengfly.tieba.post.ui.animation.buildPressAnimator
+import com.huanchengfly.tieba.post.ui.common.animation.addMaskAnimation
+import com.huanchengfly.tieba.post.ui.common.animation.addZoomAnimation
+import com.huanchengfly.tieba.post.ui.common.animation.buildPressAnimator
+import com.huanchengfly.tieba.post.ui.common.theme.utils.ThemeUtils
+import com.huanchengfly.tieba.post.ui.widgets.theme.TintSwitch
 import com.huanchengfly.tieba.post.utils.DialogUtil
 import com.huanchengfly.tieba.post.utils.ThemeUtil
 import com.huanchengfly.tieba.post.utils.ThemeUtil.THEME_CUSTOM
@@ -95,7 +98,7 @@ class AppThemeActivity : BaseActivity() {
         }
         appThemeAdapter.setOnItemClickListener { _, item, _ ->
             val theme = item.value
-            if (ThemeUtil.isNightMode(theme) != ThemeUtil.isNightMode(appPreferences.theme)) {
+            if (ThemeUtil.isNightMode(theme) != ThemeUtil.isNightMode(ThemeUtil.themeState.value)) {
                 DialogUtil.build(this)
                     .setMessage(R.string.message_dialog_follow_system_night)
                     .setPositiveButton(R.string.btn_keep_following) { _, _ ->
@@ -138,14 +141,31 @@ class AppThemeActivity : BaseActivity() {
                         getString(R.string.bubble_want_colored_toolbar),
                         POSITION_RIGHT
                     ),
-                    ChatBubbleStyleAdapter.Bubble(getString(R.string.bubble_not_completed))
+                    ChatBubbleStyleAdapter.Bubble { context, _, parent ->
+                        val view = LayoutInflater.from(context)
+                            .inflate(R.layout.layout_bubble_toolbar_primary_color, parent, false)
+                        view.findViewById<TintSwitch>(R.id.theme_toolbar_primary_color)?.apply {
+                            setOnCheckedChangeListener(null)
+                            isChecked = appPreferences.toolbarPrimaryColor
+                            setOnCheckedChangeListener { _, isChecked ->
+                                appPreferences.toolbarPrimaryColor = isChecked
+                                postDelayed({
+                                    ThemeUtils.refreshUI(
+                                        this@AppThemeActivity,
+                                        this@AppThemeActivity
+                                    )
+                                }, 10)
+                            }
+                        }
+                        view
+                    }
                 )
             )
         }
     }
 
     private fun refreshSelectedTheme() {
-        when (appPreferences.theme) {
+        when (ThemeUtil.themeState.value) {
             THEME_CUSTOM -> {
                 customThemeSelected.visibility = View.VISIBLE
                 translucentThemeSelected.visibility = View.GONE
@@ -165,7 +185,7 @@ class AppThemeActivity : BaseActivity() {
                 .into(translucentThemePreviewIv)
         }
         customThemePreview.setCardBackgroundColor(
-            BaseApplication.ThemeDelegate.getColorByAttr(
+            App.ThemeDelegate.getColorByAttr(
                 this,
                 R.attr.colorPrimary,
                 THEME_CUSTOM
@@ -175,10 +195,7 @@ class AppThemeActivity : BaseActivity() {
     }
 
     private fun setTheme(theme: String) {
-        appPreferences.theme = theme
-        if (!ThemeUtil.isNightMode(theme)) {
-            appPreferences.oldTheme = theme
-        }
+        ThemeUtil.switchTheme(theme, !ThemeUtil.isNightMode(theme))
         refreshUIIfNeed()
         ThemeUtil.setTranslucentThemeBackground(findViewById(R.id.background))
         refreshSelectedTheme()

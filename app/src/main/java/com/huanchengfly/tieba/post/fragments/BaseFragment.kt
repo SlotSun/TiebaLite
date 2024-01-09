@@ -9,18 +9,23 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.annotation.CallSuper
+import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import butterknife.ButterKnife
 import butterknife.Unbinder
+import com.huanchengfly.tieba.post.App
 import com.huanchengfly.tieba.post.interfaces.BackHandledInterface
 import com.huanchengfly.tieba.post.interfaces.Refreshable
 import com.huanchengfly.tieba.post.isLandscape
 import com.huanchengfly.tieba.post.isPortrait
 import com.huanchengfly.tieba.post.isTablet
+import com.huanchengfly.tieba.post.ui.common.theme.utils.ThemeUtils
 import com.huanchengfly.tieba.post.utils.AppPreferencesUtils
+import com.huanchengfly.tieba.post.utils.DialogUtil
 import com.huanchengfly.tieba.post.utils.HandleBackUtil
 import kotlinx.coroutines.*
 import kotlinx.coroutines.Dispatchers.IO
+import java.lang.ref.WeakReference
 import kotlin.coroutines.CoroutineContext
 
 /**
@@ -48,9 +53,21 @@ abstract class BaseFragment : Fragment(), BackHandledInterface, CoroutineScope {
     var isFirstVisible = false
         private set
     private var rootView: View? = null
-    lateinit var attachContext: Context
+    var attachContextWeakReference: WeakReference<Context>? = null
+    val attachContext: Context
+        get() {
+            var mContext: Context? = context
+            if (mContext == null && attachContextWeakReference != null) {
+                mContext = attachContextWeakReference!!.get()
+                ThemeUtils.getWrapperActivity(mContext)?.let { mContext = it }
+            }
+            if (mContext == null) {
+                mContext = App.INSTANCE
+            }
+            return mContext!!
+        }
     protected val appPreferences: AppPreferencesUtils
-        get() = AppPreferencesUtils(attachContext)
+        get() = AppPreferencesUtils.getInstance(attachContext)
 
     @TargetApi(23)
     override fun onAttach(context: Context) {
@@ -58,6 +75,7 @@ abstract class BaseFragment : Fragment(), BackHandledInterface, CoroutineScope {
         onAttachToContext(context)
     }
 
+    @Deprecated("Deprecated in Java")
     override fun onAttach(activity: Activity) {
         super.onAttach(activity)
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
@@ -67,7 +85,7 @@ abstract class BaseFragment : Fragment(), BackHandledInterface, CoroutineScope {
 
     @CallSuper
     private fun onAttachToContext(context: Context) {
-        attachContext = context
+        attachContextWeakReference = WeakReference(context)
     }
 
     override fun onBackPressed(): Boolean {
@@ -79,6 +97,7 @@ abstract class BaseFragment : Fragment(), BackHandledInterface, CoroutineScope {
     //如果Fragment从可见->不可见，那么setUserVisibleHint()也会被调用，传入isVisibleToUser = false
     //总结：setUserVisibleHint()除了Fragment的可见状态发生变化时会被回调外，在new时也会被回调
     //如果我们需要在Fragment可见与不可见时干点事，用这个的话就会有多余的回调了，那么就需要重新封装一个
+    @Deprecated("Deprecated in Java")
     override fun setUserVisibleHint(isVisibleToUser: Boolean) {
         super.setUserVisibleHint(isVisibleToUser)
         //setUserVisibleHint()有可能在fragment的生命周期外被调用
@@ -127,10 +146,6 @@ abstract class BaseFragment : Fragment(), BackHandledInterface, CoroutineScope {
         super.onViewCreated((if (isReuseView) rootView else view)!!, savedInstanceState)
     }
 
-    override fun onDestroyView() {
-        super.onDestroyView()
-    }
-
     override fun onDestroy() {
         super.onDestroy()
         initVariable()
@@ -143,7 +158,11 @@ abstract class BaseFragment : Fragment(), BackHandledInterface, CoroutineScope {
         isReuseView = true
     }
 
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
         val inflate = inflater.inflate(getLayoutId(), container, false)
         unbinder = ButterKnife.bind(this, inflate)
         return inflate
@@ -201,6 +220,14 @@ abstract class BaseFragment : Fragment(), BackHandledInterface, CoroutineScope {
 
     open fun hasOwnAppbar(): Boolean {
         return false
+    }
+
+    fun showDialog(builder: AlertDialog.Builder.() -> Unit): AlertDialog {
+        val dialog = DialogUtil.build(attachContext)
+            .apply(builder)
+            .create()
+        dialog.show()
+        return dialog
     }
 
     fun launchIO(

@@ -14,17 +14,17 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.huanchengfly.tieba.post.R;
 import com.huanchengfly.tieba.post.adapters.SearchForumAdapter;
-import com.huanchengfly.tieba.post.ui.theme.interfaces.Tintable;
-import com.huanchengfly.tieba.post.ui.theme.utils.ThemeUtils;
+import com.huanchengfly.tieba.post.ui.common.theme.interfaces.Tintable;
+import com.huanchengfly.tieba.post.ui.common.theme.utils.ThemeUtils;
 import com.huanchengfly.tieba.post.utils.DisplayUtil;
 
 public class SearchDivider extends RecyclerView.ItemDecoration implements Tintable {
     public static final String TAG = SearchDivider.class.getSimpleName();
 
     private Drawable mDivider;
-    private int mOrientation;
-    private int mDividerHeight;
-    private int mCommonDividerHeight;
+    private final int mOrientation;
+    private final int mDividerHeight;
+    private final int mCommonDividerHeight;
 
     public SearchDivider(Context context) {
         mOrientation = LinearLayoutManager.VERTICAL;

@@ -2,52 +2,101 @@ package com.huanchengfly.tieba.post.utils
 
 import android.content.Context
 import android.content.Intent
-import android.util.Log
 import android.webkit.CookieManager
 import android.widget.Toast
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.staticCompositionLocalOf
 import com.huanchengfly.tieba.post.R
-import com.huanchengfly.tieba.post.api.Error
 import com.huanchengfly.tieba.post.api.TiebaApi
-import com.huanchengfly.tieba.post.api.interfaces.CommonCallback
-import com.huanchengfly.tieba.post.api.retrofit.ApiResult
-import com.huanchengfly.tieba.post.api.retrofit.doIfSuccess
-import com.huanchengfly.tieba.post.api.retrofit.exception.TiebaException
-import com.huanchengfly.tieba.post.api.retrofit.exception.TiebaLocalException
-import com.huanchengfly.tieba.post.api.retrofit.isSuccessful
-import com.huanchengfly.tieba.post.models.MyInfoBean
+import com.huanchengfly.tieba.post.api.models.InitNickNameBean
+import com.huanchengfly.tieba.post.api.models.LoginBean
+import com.huanchengfly.tieba.post.arch.GlobalEvent
+import com.huanchengfly.tieba.post.arch.emitGlobalEvent
 import com.huanchengfly.tieba.post.models.database.Account
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.async
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.zip
+import kotlinx.coroutines.launch
+import org.litepal.LitePal
 import org.litepal.LitePal.findAll
 import org.litepal.LitePal.where
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
+import org.litepal.extension.findAllAsync
+import org.litepal.extension.findFirst
+import java.util.UUID
 
+@Stable
 object AccountUtil {
     const val TAG = "AccountUtil"
     const val ACTION_SWITCH_ACCOUNT = "com.huanchengfly.tieba.post.action.SWITCH_ACCOUNT"
 
-    @JvmStatic
-    fun getLoginInfo(context: Context): Account? {
-        val loginUser =
-            context.getSharedPreferences("accountData", Context.MODE_PRIVATE).getInt("now", -1)
-        return if (loginUser == -1) {
-            null
-        } else getAccountInfo(loginUser)
+    val LocalAccount = staticCompositionLocalOf<Account?> { null }
+    val AllAccounts = staticCompositionLocalOf<List<Account>> { emptyList() }
+
+    @Composable
+    fun LocalAccountProvider(content: @Composable () -> Unit) {
+        val account by mutableCurrentAccountState
+        val allAccounts by mutableAllAccountsState
+        CompositionLocalProvider(
+            LocalAccount provides account,
+            AllAccounts provides allAccounts
+        ) {
+            content()
+        }
     }
 
-    val allAccounts: List<Account>
-        get() = findAll(Account::class.java)
+    @set:Synchronized
+    private var mutableCurrentAccountState: MutableState<Account?> = mutableStateOf(null)
 
-    fun getAccountInfo(accountId: Int): Account {
+    private var mutableAllAccountsState: MutableState<List<Account>> = mutableStateOf(emptyList())
+
+    val currentAccount
+        get() = mutableCurrentAccountState.value
+
+    val allAccounts: List<Account>
+        get() = mutableAllAccountsState.value
+
+    fun init(context: Context) {
+        val account = runCatching {
+            val loginUser =
+                context.getSharedPreferences("accountData", Context.MODE_PRIVATE).getInt("now", -1)
+            if (loginUser == -1) {
+                null
+            } else getAccountInfo(loginUser)
+        }.getOrNull()
+        mutableCurrentAccountState.value = account
+        mutableAllAccountsState.value = findAll(Account::class.java)
+    }
+
+    @JvmStatic
+    fun getLoginInfo(): Account? {
+        return currentAccount
+    }
+
+    @JvmStatic
+    fun <T> getAccountInfo(getter: Account.() -> T): T? {
+        return currentAccount?.getter()
+    }
+
+    fun newAccount(uid: String, account: Account, callback: (Boolean) -> Unit) {
+        account.saveOrUpdateAsync("uid = ?", uid).listen {
+            mutableAllAccountsState.value = findAll(Account::class.java)
+            callback(it)
+        }
+    }
+
+    private fun getAccountInfo(accountId: Int): Account {
         return where("id = ?", accountId.toString()).findFirst(Account::class.java)
     }
 
     @JvmStatic
-    fun getAccountInfoByUid(uid: String): Account {
-        return where("uid = ?", uid).findFirst(Account::class.java)
+    fun getAccountInfoByUid(uid: String): Account? {
+        return where("uid = ?", uid).findFirst<Account>()
     }
 
     @JvmStatic
@@ -56,166 +105,140 @@ object AccountUtil {
     }
 
     @JvmStatic
-    fun isLoggedIn(context: Context): Boolean {
-        return getLoginInfo(context) != null
-    }
-
-    fun newAccount(context: Context, account: Account, needSwitch: Boolean): Boolean {
-        return if (account.save()) {
-            if (needSwitch) {
-                switchUser(context, account.id)
-            } else true
-        } else false
+    fun isLoggedIn(): Boolean {
+        return getLoginInfo() != null
     }
 
     @JvmStatic
-    fun switchUser(context: Context, id: Int): Boolean {
+    fun switchAccount(context: Context, id: Int): Boolean {
         context.sendBroadcast(Intent().setAction(ACTION_SWITCH_ACCOUNT))
+        val account = runCatching { getAccountInfo(id) }.getOrNull() ?: return false
+        mutableCurrentAccountState.value = account
+        GlobalScope.launch {
+            emitGlobalEvent(GlobalEvent.AccountSwitched)
+        }
         return context.getSharedPreferences("accountData", Context.MODE_PRIVATE).edit()
             .putInt("now", id).commit()
     }
 
-    fun updateUserInfo(context: Context, commonCallback: CommonCallback<MyInfoBean>) {
-        val account = getLoginInfo(context)
-        if (account == null) {
-            commonCallback.onFailure(Error.ERROR_NOT_LOGGED_IN, "未登录")
-            return
+    private fun updateAccount(
+        account: Account,
+        initNickNameBean: InitNickNameBean,
+        loginBean: LoginBean,
+    ) {
+        account.apply {
+            uid = loginBean.user.id
+            name = loginBean.user.name
+            nameShow = initNickNameBean.userInfo.nameShow
+            portrait = loginBean.user.portrait
+            tbs = loginBean.anti.tbs
+            if (uuid.isNullOrBlank()) uuid = UUID.randomUUID().toString()
         }
-        updateUserInfoByBduss(account.bduss, commonCallback)
+    }
+
+    fun fetchAccountFlow(account: Account = getLoginInfo()!!): Flow<Account> {
+        return fetchAccountFlow(account.bduss, account.sToken, account.cookie)
+    }
+
+    fun fetchAccountFlow(
+        bduss: String,
+        sToken: String,
+        cookie: String? = null
+    ): Flow<Account> {
+        return TiebaApi.getInstance()
+            .initNickNameFlow(bduss, sToken)
+            .zip(TiebaApi.getInstance().loginFlow(bduss, sToken)) { initNickNameBean, loginBean ->
+                getAccountInfoByUid(loginBean.user.id)?.apply {
+                    this.bduss = bduss
+                    this.sToken = sToken
+                    this.cookie = cookie ?: getBdussCookie(bduss)
+                    updateAccount(this, initNickNameBean, loginBean)
+                } ?: Account(
+                    loginBean.user.id,
+                    loginBean.user.name,
+                    bduss,
+                    loginBean.anti.tbs,
+                    loginBean.user.portrait,
+                    sToken,
+                    cookie ?: getBdussCookie(bduss),
+                    initNickNameBean.userInfo.nameShow,
+                    "",
+                    "0"
+                )
+            }
+            .zip(SofireUtils.fetchZid()) { account, zid ->
+                account.apply { this.zid = zid }
+            }
+            .onEach { account ->
+                account.updateAllAsync("uid = ?", account.uid)
+                    .listen { rowAffected ->
+                        if (rowAffected > 0) {
+                            LitePal.findAllAsync<Account>()
+                                .listen {
+                                    mutableAllAccountsState.value = it
+                                }
+                        }
+                    }
+            }
     }
 
     @JvmStatic
     fun updateLoginInfo(cookie: String): Boolean {
-        val bdussSplit = cookie.split("BDUSS=").toTypedArray()
-        val sTokenSplit = cookie.split("STOKEN=").toTypedArray()
+        val bdussSplit = cookie.split("BDUSS=")
+        val sTokenSplit = cookie.split("STOKEN=")
         if (bdussSplit.size > 1 && sTokenSplit.size > 1) {
-            val bduss = bdussSplit[1].split(";").toTypedArray()[0]
-            val sToken = sTokenSplit[1].split(";").toTypedArray()[0]
+            val bduss = bdussSplit[1].split(";")[0]
+            val sToken = sTokenSplit[1].split(";")[0]
             val account = getAccountInfoByBduss(bduss)
-            if (account != null) {
-                account.setsToken(sToken)
-                    .setCookie(cookie)
-                    .update(account.id.toLong())
-                return true
-            }
+            account.apply {
+                this.sToken = sToken
+                this.cookie = cookie
+            }.update(account.id.toLong())
+            return true
         }
         return false
     }
 
-    suspend fun updateUserInfoAsync(
-        coroutineScope: CoroutineScope,
-        bduss: String
-    ): Deferred<ApiResult<MyInfoBean>> {
-        return coroutineScope.async {
-            var result = TiebaApi.getInstance()
-                .myInfoAsync(getBdussCookie(bduss))
-                .await()
-            Log.i("AccountUtil", "updateUserInfo finish success:${result.isSuccessful}")
-            result.doIfSuccess {
-                if (!it.data.isLogin()) {
-                    result = ApiResult.Failure(
-                        TiebaLocalException(
-                            Error.ERROR_LOGGED_IN_EXPIRED,
-                            "登录已过期"
-                        )
-                    )
-                }
-                val userId = it.data.getUid().toString()
-                Account().setBduss(bduss)
-                    .setPortrait(it.data.getAvatarUrl())
-                    .setUid(userId)
-                    .setTbs(it.data.getTbs())
-                    .setItbTbs(it.data.getItbTbs())
-                    .setName(it.data.getName())
-                    .setNameShow(it.data.getShowName())
-                    .saveOrUpdate("uid = ? OR bduss = ?", userId, bduss)
-            }
-            result
-        }
-    }
-
-    @JvmStatic
-    fun updateUserInfoByBduss(bduss: String, commonCallback: CommonCallback<MyInfoBean>?) {
-        TiebaApi.getInstance().myInfo(getBdussCookie(bduss)).enqueue(object : Callback<MyInfoBean> {
-            override fun onResponse(call: Call<MyInfoBean>, response: Response<MyInfoBean>) {
-                val myInfoBean = response.body()
-                if (myInfoBean == null) {
-                    commonCallback?.onFailure(Error.ERROR_UNKNOWN, "未知错误")
-                    return
-                }
-                if (!myInfoBean.data.isLogin()) {
-                    commonCallback?.onFailure(Error.ERROR_LOGGED_IN_EXPIRED, "登录已过期")
-                    return
-                }
-                val userId = myInfoBean.data.getUid().toString()
-                Account().setBduss(bduss)
-                    .setPortrait(myInfoBean.data.getAvatarUrl())
-                    .setUid(userId)
-                    .setTbs(myInfoBean.data.getTbs())
-                    .setItbTbs(myInfoBean.data.getItbTbs())
-                    .setName(myInfoBean.data.getName())
-                    .setNameShow(myInfoBean.data.getShowName())
-                    .saveOrUpdate("uid = ? OR bduss = ?", userId, bduss)
-                commonCallback?.onSuccess(myInfoBean)
-            }
-
-            override fun onFailure(call: Call<MyInfoBean>, t: Throwable) {
-                if (commonCallback != null) {
-                    if (t is TiebaException) {
-                        commonCallback.onFailure(t.code, t.message)
-                    } else {
-                        commonCallback.onFailure(-1, t.message)
-                    }
-                }
-            }
-        })
-    }
-
     fun exit(context: Context) {
         var accounts = allAccounts
-        var account = getLoginInfo(context)
-        if (account == null) return
+        var account = getLoginInfo() ?: return
         account.delete()
         CookieManager.getInstance().removeAllCookies(null)
         if (accounts.size > 1) {
             accounts = allAccounts
             account = accounts[0]
-            switchUser(context, account.id)
+            switchAccount(context, account.id)
             Toast.makeText(context, "退出登录成功，已切换至账号 " + account.nameShow, Toast.LENGTH_SHORT).show()
             return
         }
+        mutableCurrentAccountState.value = null
         context.getSharedPreferences("accountData", Context.MODE_PRIVATE).edit().clear().commit()
         Toast.makeText(context, R.string.toast_exit_account_success, Toast.LENGTH_SHORT).show()
     }
 
-    fun getSToken(context: Context?): String? {
-        if (context == null) return null
-        val account = getLoginInfo(context)
-        return account?.getsToken()
+    fun getSToken(): String? {
+        val account = getLoginInfo()
+        return account?.sToken
     }
 
-    fun getCookie(context: Context?): String? {
-        if (context == null) return null
-        val account = getLoginInfo(context)
+    fun getCookie(): String? {
+        val account = getLoginInfo()
         return account?.cookie
     }
 
-    fun getUid(context: Context?): String? {
-        if (context == null) return null
-        val account = getLoginInfo(context)
+    fun getUid(): String? {
+        val account = getLoginInfo()
         return account?.uid
     }
 
-    fun getBduss(context: Context?): String? {
-        if (context == null) return null
-        val account = getLoginInfo(context)
+    fun getBduss(): String? {
+        val account = getLoginInfo()
         return account?.bduss
     }
 
     @JvmStatic
-    fun getBdussCookie(context: Context?): String? {
-        if (context == null) return null
-        val bduss = getBduss(context)
+    fun getBdussCookie(): String? {
+        val bduss = getBduss()
         return if (bduss != null) {
             getBdussCookie(bduss)
         } else null

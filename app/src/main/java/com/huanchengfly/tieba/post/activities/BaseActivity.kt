@@ -4,7 +4,6 @@ import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
 import android.app.Activity
 import android.app.Dialog
-import android.content.Context
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.content.res.Resources
@@ -23,36 +22,47 @@ import androidx.annotation.CallSuper
 import androidx.annotation.ColorInt
 import androidx.annotation.Keep
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import butterknife.ButterKnife
 import cn.jzvd.Jzvd
 import com.gyf.immersionbar.ImmersionBar
-import com.huanchengfly.tieba.post.BaseApplication
-import com.huanchengfly.tieba.post.BaseApplication.Companion.instance
+import com.huanchengfly.tieba.post.App
+import com.huanchengfly.tieba.post.App.Companion.INSTANCE
 import com.huanchengfly.tieba.post.R
-import com.huanchengfly.tieba.post.ui.theme.interfaces.ExtraRefreshable
-import com.huanchengfly.tieba.post.ui.theme.utils.ThemeUtils
-import com.huanchengfly.tieba.post.utils.*
-import com.huanchengfly.tieba.post.widgets.VoicePlayerView
-import com.huanchengfly.tieba.post.widgets.theme.TintToolbar
-import kotlinx.coroutines.*
-import me.imid.swipebacklayout.lib.app.SwipeBackActivity
+import com.huanchengfly.tieba.post.activities.MainActivity.Companion.SP_SHOULD_SHOW_SNACKBAR
+import com.huanchengfly.tieba.post.dataStore
+import com.huanchengfly.tieba.post.putBoolean
+import com.huanchengfly.tieba.post.ui.common.theme.interfaces.ExtraRefreshable
+import com.huanchengfly.tieba.post.ui.common.theme.utils.ThemeUtils
+import com.huanchengfly.tieba.post.ui.widgets.VoicePlayerView
+import com.huanchengfly.tieba.post.ui.widgets.theme.TintToolbar
+import com.huanchengfly.tieba.post.utils.AppPreferencesUtils
+import com.huanchengfly.tieba.post.utils.DialogUtil
+import com.huanchengfly.tieba.post.utils.HandleBackUtil
+import com.huanchengfly.tieba.post.utils.ThemeUtil
+import com.huanchengfly.tieba.post.utils.calcStatusBarColorInt
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
 
-abstract class BaseActivity : SwipeBackActivity(), ExtraRefreshable, CoroutineScope {
+abstract class BaseActivity : AppCompatActivity(), ExtraRefreshable, CoroutineScope {
     val job = Job()
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.Main + job
 
     private var mTintToolbar: TintToolbar? = null
-    private var oldTheme: String? = null
+    private var oldTheme: String = ""
 
     var isActivityRunning = true
         private set
     private var customStatusColor = -1
     private var statusBarTinted = false
 
-    val appPreferences: AppPreferencesUtils by lazy { AppPreferencesUtils(this) }
+    val appPreferences: AppPreferencesUtils by lazy { AppPreferencesUtils.getInstance(this) }
 
     override fun onPause() {
         super.onPause()
@@ -81,7 +91,7 @@ abstract class BaseActivity : SwipeBackActivity(), ExtraRefreshable, CoroutineSc
     }
 
     fun showDialog(builder: AlertDialog.Builder.() -> Unit): AlertDialog {
-        val dialog = AlertDialog.Builder(this)
+        val dialog = DialogUtil.build(this)
             .apply(builder)
             .create()
         if (isActivityRunning) {
@@ -96,14 +106,16 @@ abstract class BaseActivity : SwipeBackActivity(), ExtraRefreshable, CoroutineSc
     }
 
     open val isNeedImmersionBar: Boolean = true
+    open val isNeedFixBg: Boolean = true
+    open val isNeedSetTheme: Boolean = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        fixBackground()
+        if (isNeedFixBg) fixBackground()
         getDeviceDensity()
-        instance.addActivity(this)
-        ThemeUtil.setTheme(this)
-        oldTheme = ThemeUtil.getTheme(this)
+        INSTANCE.addActivity(this)
+        if (isNeedSetTheme) ThemeUtil.setTheme(this)
+        oldTheme = ThemeUtil.getRawTheme()
         if (isNeedImmersionBar) {
             refreshStatusBarColor()
         }
@@ -125,9 +137,10 @@ abstract class BaseActivity : SwipeBackActivity(), ExtraRefreshable, CoroutineSc
     }
 
     fun refreshUIIfNeed() {
-        if (TextUtils.equals(oldTheme, ThemeUtil.getTheme(this)) &&
-                ThemeUtil.THEME_CUSTOM != ThemeUtil.getTheme(this) &&
-                !ThemeUtil.isTranslucentTheme(this)) {
+        if (TextUtils.equals(oldTheme, ThemeUtil.getRawTheme()) &&
+            ThemeUtil.THEME_CUSTOM != ThemeUtil.getRawTheme() &&
+            !ThemeUtil.isTranslucentTheme()
+        ) {
             return
         }
         if (recreateIfNeed()) {
@@ -140,11 +153,11 @@ abstract class BaseActivity : SwipeBackActivity(), ExtraRefreshable, CoroutineSc
         super.onResume()
         isActivityRunning = true
         if (appPreferences.followSystemNight) {
-            if (BaseApplication.isSystemNight && !ThemeUtil.isNightMode(this)) {
-                SharedPreferencesUtil.put(ThemeUtil.getSharedPreferences(this), MainActivity.SP_SHOULD_SHOW_SNACKBAR, true)
+            if (App.isSystemNight && !ThemeUtil.isNightMode()) {
+                dataStore.putBoolean(SP_SHOULD_SHOW_SNACKBAR, true)
                 ThemeUtil.switchToNightMode(this, false)
-            } else if (!BaseApplication.isSystemNight && ThemeUtil.isNightMode(this)) {
-                SharedPreferencesUtil.put(ThemeUtil.getSharedPreferences(this), MainActivity.SP_SHOULD_SHOW_SNACKBAR, true)
+            } else if (!App.isSystemNight && ThemeUtil.isNightMode()) {
+                dataStore.putBoolean(SP_SHOULD_SHOW_SNACKBAR, true)
                 ThemeUtil.switchFromNightMode(this, false)
             }
         }
@@ -153,12 +166,12 @@ abstract class BaseActivity : SwipeBackActivity(), ExtraRefreshable, CoroutineSc
 
     override fun onDestroy() {
         super.onDestroy()
-        instance.removeActivity(this)
+        INSTANCE.removeActivity(this)
         job.cancel()
     }
 
     fun exitApplication() {
-        instance.removeAllActivity()
+        INSTANCE.removeAllActivity()
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
@@ -207,35 +220,37 @@ abstract class BaseActivity : SwipeBackActivity(), ExtraRefreshable, CoroutineSc
     open fun setTitle(newTitle: String?) {}
     open fun setSubTitle(newTitle: String?) {}
 
-    protected fun getDeviceDensity() {
+    private fun getDeviceDensity() {
         val metrics = DisplayMetrics()
         windowManager.defaultDisplay.getMetrics(metrics)
         val width = metrics.widthPixels
         val height = metrics.heightPixels
-        BaseApplication.ScreenInfo.EXACT_SCREEN_HEIGHT = height
-        BaseApplication.ScreenInfo.EXACT_SCREEN_WIDTH = width
+        App.ScreenInfo.EXACT_SCREEN_HEIGHT = height
+        App.ScreenInfo.EXACT_SCREEN_WIDTH = width
         val density = metrics.density
-        BaseApplication.ScreenInfo.DENSITY = metrics.density
-        BaseApplication.ScreenInfo.SCREEN_HEIGHT = (height / density).toInt()
-        BaseApplication.ScreenInfo.SCREEN_WIDTH = (width / density).toInt()
+        App.ScreenInfo.DENSITY = metrics.density
+        App.ScreenInfo.SCREEN_HEIGHT = (height / density).toInt()
+        App.ScreenInfo.SCREEN_WIDTH = (width / density).toInt()
     }
 
     protected fun colorAnim(view: ImageView, vararg value: Int): ValueAnimator {
-        val animator: ValueAnimator = ObjectAnimator.ofArgb(ImageViewAnimWrapper(view), "tint", *value)
+        val animator: ValueAnimator =
+            ObjectAnimator.ofArgb(ImageViewAnimWrapper(view), "tint", *value)
         animator.duration = 150
         animator.interpolator = AccelerateDecelerateInterpolator()
         return animator
     }
 
     protected fun colorAnim(view: TextView, vararg value: Int): ValueAnimator {
-        val animator: ValueAnimator = ObjectAnimator.ofArgb(TextViewAnimWrapper(view), "textColor", *value)
+        val animator: ValueAnimator =
+            ObjectAnimator.ofArgb(TextViewAnimWrapper(view), "textColor", *value)
         animator.duration = 150
         animator.interpolator = AccelerateDecelerateInterpolator()
         return animator
     }
 
     fun setCustomStatusColor(customStatusColor: Int) {
-        if (ThemeUtil.isTranslucentTheme(this)) {
+        if (ThemeUtil.isTranslucentTheme()) {
             return
         }
         this.customStatusColor = customStatusColor
@@ -243,22 +258,35 @@ abstract class BaseActivity : SwipeBackActivity(), ExtraRefreshable, CoroutineSc
     }
 
     open fun refreshStatusBarColor() {
-        if (ThemeUtil.isTranslucentTheme(this)) {
+        if (ThemeUtil.isTranslucentTheme()) {
             ImmersionBar.with(this)
-                    .transparentBar()
-                    .init()
+                .transparentBar()
+                .init()
         } else {
             ImmersionBar.with(this).apply {
                 if (customStatusColor != -1) {
                     statusBarColorInt(customStatusColor)
                     autoStatusBarDarkModeEnable(true)
                 } else {
-                    statusBarColorInt(calcStatusBarColor(this@BaseActivity, ThemeUtils.getColorByAttr(this@BaseActivity, R.attr.colorToolbar)))
-                    statusBarDarkFont(ThemeUtil.isStatusBarFontDark(this@BaseActivity))
+                    statusBarColorInt(
+                        calcStatusBarColorInt(
+                            this@BaseActivity,
+                            ThemeUtils.getColorByAttr(this@BaseActivity, R.attr.colorToolbar)
+                        )
+                    )
+                    statusBarDarkFont(ThemeUtil.isStatusBarFontDark())
                 }
-                fitsSystemWindowsInt(true, ThemeUtils.getColorByAttr(this@BaseActivity, R.attr.colorBg))
-                navigationBarColorInt(ThemeUtils.getColorByAttr(this@BaseActivity, R.attr.colorNavBar))
-                navigationBarDarkIcon(ThemeUtil.isNavigationBarFontDark(this@BaseActivity))
+                fitsSystemWindowsInt(
+                    true,
+                    ThemeUtils.getColorByAttr(this@BaseActivity, R.attr.colorBackground)
+                )
+                navigationBarColorInt(
+                    ThemeUtils.getColorByAttr(
+                        this@BaseActivity,
+                        R.attr.colorNavBar
+                    )
+                )
+                navigationBarDarkIcon(ThemeUtil.isNavigationBarFontDark())
             }.init()
         }
         if (!statusBarTinted) {
@@ -271,17 +299,20 @@ abstract class BaseActivity : SwipeBackActivity(), ExtraRefreshable, CoroutineSc
         if (isNeedImmersionBar) {
             refreshStatusBarColor()
         }
-        oldTheme = ThemeUtil.getTheme(this)
+        oldTheme = ThemeUtil.getRawTheme()
     }
 
     private fun recreateIfNeed(): Boolean {
-        if (ThemeUtil.isNightMode(this) && !ThemeUtil.isNightMode(oldTheme) ||
-                !ThemeUtil.isNightMode(this) && ThemeUtil.isNightMode(oldTheme)) {
+        if (ThemeUtil.isNightMode() && !ThemeUtil.isNightMode(oldTheme) ||
+            !ThemeUtil.isNightMode() && ThemeUtil.isNightMode(oldTheme)
+        ) {
             recreate()
             return true
         }
-        if (oldTheme?.contains(ThemeUtil.THEME_TRANSLUCENT) == true && !ThemeUtil.isTranslucentTheme(this) ||
-                ThemeUtil.isTranslucentTheme(this) && oldTheme?.contains(ThemeUtil.THEME_TRANSLUCENT) == false) {
+        if (oldTheme.contains(ThemeUtil.THEME_TRANSLUCENT) &&
+            !ThemeUtil.isTranslucentTheme() || ThemeUtil.isTranslucentTheme() &&
+            !oldTheme.contains(ThemeUtil.THEME_TRANSLUCENT)
+        ) {
             recreate()
             return true
         }
@@ -316,26 +347,5 @@ abstract class BaseActivity : SwipeBackActivity(), ExtraRefreshable, CoroutineSc
         block: suspend CoroutineScope.() -> Unit
     ): Job {
         return launch(Dispatchers.IO + job, start, block)
-    }
-
-    companion object {
-        fun calcStatusBarColor(context: Context, @ColorInt originColor: Int): Int {
-            var darkerStatusBar = true
-            if (ThemeUtil.THEME_CUSTOM == ThemeUtil.getTheme(context) && !SharedPreferencesUtil.get(
-                    context,
-                    SharedPreferencesUtil.SP_SETTINGS
-                )
-                    .getBoolean(ThemeUtil.SP_CUSTOM_TOOLBAR_PRIMARY_COLOR, true)
-            ) {
-                darkerStatusBar = false
-            } else if (ThemeUtil.getTheme(context) == ThemeUtil.THEME_WHITE) {
-                darkerStatusBar = false
-            } else if (!SharedPreferencesUtil.get(context, SharedPreferencesUtil.SP_SETTINGS)
-                    .getBoolean("status_bar_darker", true)
-            ) {
-                darkerStatusBar = false
-            }
-            return if (darkerStatusBar) ColorUtils.getDarkerColor(originColor) else originColor
-        }
     }
 }

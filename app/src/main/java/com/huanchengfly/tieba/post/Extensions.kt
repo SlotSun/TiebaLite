@@ -4,6 +4,7 @@ import android.animation.LayoutTransition
 import android.app.Activity
 import android.app.PendingIntent
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.content.res.Configuration
@@ -20,22 +21,34 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.huanchengfly.tieba.post.utils.GsonUtil
 import com.huanchengfly.tieba.post.utils.MD5Util
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.toImmutableList
+import java.io.File
+import kotlin.math.roundToInt
 
+private val Context.scaledDensity: Float
+    get() = resources.displayMetrics.scaledDensity
 
 fun Float.dpToPx(): Int =
-        dpToPxFloat().toInt()
+    dpToPxFloat().roundToInt()
 
 fun Float.dpToPxFloat(): Float =
-        this * BaseApplication.ScreenInfo.DENSITY + 0.5f
+    this * App.ScreenInfo.DENSITY + 0.5f
 
-fun Float.spToPx(): Int =
-        (this * BaseApplication.instance.resources.displayMetrics.scaledDensity + 0.5f).toInt()
+fun Float.spToPx(context: Context = App.INSTANCE): Int =
+    (this * context.scaledDensity + 0.5f).roundToInt()
+
+fun Float.spToPxFloat(context: Context = App.INSTANCE): Float =
+    this * context.scaledDensity + 0.5f
 
 fun Float.pxToDp(): Int =
-        (this / BaseApplication.ScreenInfo.DENSITY + 0.5f).toInt()
+    (this / App.ScreenInfo.DENSITY + 0.5f).roundToInt()
 
-fun Float.pxToSp(): Int =
-        (this / BaseApplication.instance.resources.displayMetrics.scaledDensity + 0.5f).toInt()
+fun Float.pxToDpFloat(): Float =
+    this / App.ScreenInfo.DENSITY + 0.5f
+
+fun Float.pxToSp(context: Context = App.INSTANCE): Int =
+    (this / context.scaledDensity + 0.5f).roundToInt()
 
 fun Int.dpToPx(): Int = this.toFloat().dpToPx()
 
@@ -43,16 +56,30 @@ fun Int.spToPx(): Int = this.toFloat().spToPx()
 
 fun Int.pxToDp(): Int = this.toFloat().pxToDp()
 
-fun Int.pxToSp(): Int = this.toFloat().pxToSp()
+fun Int.pxToSp(context: Context = App.INSTANCE): Int = this.toFloat().pxToSp(context)
+
+fun Float.pxToSpFloat(): Float = this / App.INSTANCE.resources.displayMetrics.scaledDensity + 0.5f
+
+fun Int.pxToSpFloat(): Float = this.toFloat().pxToSpFloat()
+
+fun Int.pxToDpFloat(): Float =
+    this.toFloat().pxToDpFloat()
 
 inline fun <reified Data> String.fromJson(): Data {
     val type = object : TypeToken<Data>() {}.type
     return GsonUtil.getGson().fromJson(this, type)
 }
 
+inline fun <reified Data> File.fromJson(): Data {
+    val type = object : TypeToken<Data>() {}.type
+    return GsonUtil.getGson().fromJson(reader(), type)
+}
+
 fun Any.toJson(): String = Gson().toJson(this)
 
 fun String.toMD5(): String = MD5Util.toMd5(this)
+
+fun ByteArray.toMD5(): String = MD5Util.toMd5(this)
 
 fun Context.getColorCompat(@ColorRes id: Int): Int {
     return ContextCompat.getColor(this, id)
@@ -79,11 +106,11 @@ inline fun <reified T : Activity> Fragment.goToActivity(pre: Intent.() -> Unit) 
 }
 
 fun Context.toastShort(text: String) {
-    Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
+    runCatching { Toast.makeText(this, text, Toast.LENGTH_SHORT).show() }
 }
 
 fun Context.toastShort(resId: Int, vararg args: Any) {
-    Toast.makeText(this, getString(resId, *args), Toast.LENGTH_SHORT).show()
+    toastShort(getString(resId, *args))
 }
 
 fun ViewGroup.enableChangingLayoutTransition() {
@@ -107,6 +134,12 @@ val Configuration.isTablet: Boolean
 val Context.isTablet: Boolean
     get() = resources.configuration.isTablet
 
+fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
 fun pendingIntentFlagMutable(): Int {
     return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         PendingIntent.FLAG_MUTABLE
@@ -121,4 +154,8 @@ fun pendingIntentFlagImmutable(): Int {
     } else {
         0
     }
+}
+
+fun <T> ImmutableList<T>.removeAt(index: Int): ImmutableList<T> {
+    return this.toMutableList().apply { removeAt(index) }.toImmutableList()
 }

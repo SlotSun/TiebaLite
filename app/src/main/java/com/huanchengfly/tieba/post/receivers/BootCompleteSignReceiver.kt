@@ -5,11 +5,11 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import com.huanchengfly.tieba.post.pendingIntentFlagImmutable
+import com.huanchengfly.tieba.post.pendingIntentFlagMutable
 import com.huanchengfly.tieba.post.utils.TiebaUtil
 import com.huanchengfly.tieba.post.utils.Util
 import com.huanchengfly.tieba.post.utils.appPreferences
-import java.util.*
+import java.util.Calendar
 
 class BootCompleteSignReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -24,7 +24,8 @@ class BootCompleteSignReceiver : BroadcastReceiver() {
                     if (signDay != Calendar.getInstance()[Calendar.DAY_OF_MONTH]) {
                         TiebaUtil.startSign(context)
                     }
-                    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+                    val alarmManager =
+                        context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
                     val time = Util.time2Calendar(autoSignTimeStr).apply {
                         add(Calendar.DAY_OF_MONTH, 1)
                     }.timeInMillis
@@ -32,9 +33,14 @@ class BootCompleteSignReceiver : BroadcastReceiver() {
                         context,
                         0,
                         Intent(context, AutoSignAlarm::class.java),
-                        pendingIntentFlagImmutable()
+                        pendingIntentFlagMutable()
                     )
-                    alarmManager.setInexactRepeating(AlarmManager.RTC, time, AlarmManager.INTERVAL_DAY, pendingIntent)
+                    alarmManager.setRepeating(
+                        AlarmManager.RTC_WAKEUP,
+                        time,
+                        AlarmManager.INTERVAL_DAY,
+                        pendingIntent
+                    )
                 }
             }
         }

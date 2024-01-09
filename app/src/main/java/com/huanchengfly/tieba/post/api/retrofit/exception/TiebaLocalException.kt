@@ -1,6 +1,10 @@
 package com.huanchengfly.tieba.post.api.retrofit.exception
 
-class TiebaLocalException(
+open class TiebaLocalException(
     override val code: Int,
     msg: String
-) : TiebaException(msg)
+) : TiebaException(msg) {
+    override fun toString(): String {
+        return "TiebaLocalException(code=$code, message=$message)"
+    }
+}

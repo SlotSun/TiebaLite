@@ -3,20 +3,19 @@ package com.huanchengfly.tieba.post.adapters
 import android.content.Context
 import android.os.Build
 import com.google.android.material.card.MaterialCardView
-import com.huanchengfly.tieba.post.BaseApplication.ThemeDelegate.getColorByAttr
+import com.huanchengfly.tieba.post.App.ThemeDelegate.getColorByAttr
 import com.huanchengfly.tieba.post.R
 import com.huanchengfly.tieba.post.adapters.base.BaseSingleTypeAdapter
 import com.huanchengfly.tieba.post.components.MyViewHolder
 import com.huanchengfly.tieba.post.utils.ColorUtils
 import com.huanchengfly.tieba.post.utils.ThemeUtil
-import com.huanchengfly.tieba.post.utils.appPreferences
 
 class AppThemeAdapter private constructor(
     context: Context,
     themeList: List<AppTheme>
 ) : BaseSingleTypeAdapter<AppTheme>(context, themeList) {
     var selectedItemPosition: Int = getItemList().indexOfFirst {
-        it.value == context.appPreferences.theme
+        it.value == ThemeUtil.themeState.value
     }
         set(value) {
             val oldPosition = field + 0
@@ -55,7 +54,7 @@ class AppThemeAdapter private constructor(
     }
 
     private fun getThemeColor(theme: String): Int {
-        if (ThemeUtil.THEME_WHITE == theme || ThemeUtil.isNightMode(theme)) {
+        if (ThemeUtil.isNightMode(theme)) {
             return getColorByAttr(context, R.attr.colorToolbar, theme)
         } else if (ThemeUtil.isTranslucentTheme(theme)) {
             return ColorUtils.alpha(
@@ -90,7 +89,7 @@ class AppThemeAdapter private constructor(
 
     fun refresh() {
         selectedItemPosition = getItemList().indexOfFirst {
-            it.value == context.appPreferences.theme
+            it.value == ThemeUtil.themeState.value
         }
         notifyDataSetChanged()
     }

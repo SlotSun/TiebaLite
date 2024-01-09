@@ -1,39 +1,52 @@
 plugins {
-    id "com.android.application"
-    id "kotlin-android"
-    id "kotlin-kapt"
+    id 'com.android.application'
+    id 'kotlin-android'
+    id 'kotlin-kapt'
+    id 'kotlinx-serialization'
+    id 'dagger.hilt.android.plugin'
+    id 'com.squareup.wire'
+    id 'com.google.devtools.ksp' version "$kotlin_version-1.0.13"
+    id "org.jetbrains.kotlin.plugin.parcelize"
+//    id 'com.didiglobal.booster'
 }
 
 def keystoreProperties = new Properties()
 keystoreProperties.load(new FileInputStream(rootProject.file("keystore.properties")))
 def applicationProperties = new Properties()
 applicationProperties.load(new FileInputStream(rootProject.file("application.properties")))
-def buildId = System.getenv("APPCENTER_BUILD_ID")
+def sha = System.getenv("GITHUB_SHA")
+def isCI = System.getenv("CI")
+def isSelfBuild = isCI == null || !isCI.equalsIgnoreCase("true")
 def applicationVersionCode = applicationProperties["versionCode"].toInteger()
 def applicationVersionName = applicationProperties["versionName"]
 def isPerVersion = applicationProperties["isPerRelease"] == "true"
-if (buildId != null) {
-    applicationVersionName = applicationVersionName + ".${buildId}"
-}
 if (isPerVersion) {
-    applicationVersionName = applicationVersionName + ".${applicationProperties["preReleaseName"]}-${applicationProperties["preReleaseVer"]}"
+    applicationVersionName = applicationVersionName + "-${applicationProperties["preReleaseName"]}.${applicationProperties["preReleaseVer"]}"
 }
-project.ext.set("archivesBaseName",  "${applicationVersionName}(${applicationVersionCode})".toString())
+if (!isSelfBuild) {
+    applicationVersionName = applicationVersionName + "+${sha.substring(0, 7)}"
+}
 
 android {
-    compileSdkVersion 31
-    buildToolsVersion '31.0.0'
+    buildToolsVersion = '34.0.0'
+    compileSdk 34
     defaultConfig {
         applicationId "com.huanchengfly.tieba.post"
         minSdkVersion 21
         //noinspection OldTargetApi
-        targetSdkVersion 31
+        targetSdkVersion 34
         versionCode applicationVersionCode
         versionName applicationVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary true
         }
+        manifestPlaceholders = [
+                is_self_build: "$isSelfBuild",
+        ]
+    }
+    buildFeatures {
+        compose true
     }
     signingConfigs {
         release {
@@ -41,12 +54,16 @@ android {
             keyPassword keystoreProperties["releaseKeyPassword"]
             storeFile file(rootDir.getCanonicalPath() + "/" + keystoreProperties["releaseKeyStore"])
             storePassword keystoreProperties["releaseStorePassword"]
-            v2SigningEnabled true
+            enableV1Signing true
+            enableV2Signing true
             enableV3Signing true
             enableV4Signing true
         }
     }
     buildTypes {
+        debug {
+            signingConfig signingConfigs.release
+        }
         release {
             minifyEnabled true
             shrinkResources true
@@ -58,100 +75,205 @@ android {
             multiDexEnabled true
         }
     }
+    composeOptions {
+        kotlinCompilerExtensionVersion compose_compiler_version
+    }
     compileOptions {
-        targetCompatibility JavaVersion.VERSION_1_8
-        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_11
+        sourceCompatibility JavaVersion.VERSION_11
     }
     kotlinOptions {
-        jvmTarget = '1.8'
+        jvmTarget = '11'
+//        freeCompilerArgs += ["-P", "plugin:androidx.compose.compiler.plugins.kotlin:suppressKotlinVersionCompatibilityCheck=true"]
+        freeCompilerArgs += ["-P", "plugin:androidx.compose.compiler.plugins.kotlin:reportsDestination=" + project.buildDir.absolutePath + "/compose_metrics"]
+        freeCompilerArgs += ["-P", "plugin:androidx.compose.compiler.plugins.kotlin:metricsDestination=" + project.buildDir.absolutePath + "/compose_metrics"]
     }
     packagingOptions {
         resources {
             excludes += '/META-INF/{AL2.0,LGPL2.1}'
         }
     }
+    namespace 'com.huanchengfly.tieba.post'
+    applicationVariants.all { variant ->
+        variant.outputs.each { output ->
+            def outputFile = output.outputFile
+            def fileName = "${variant.buildType.name}-${applicationVersionName}(${applicationVersionCode}).apk"
+            output.outputFileName = new File(outputFile.parent, fileName).name
+        }
+        kotlin.sourceSets {
+            getByName(variant.name) {
+                kotlin.srcDir("build/generated/ksp/${variant.name}/kotlin")
+            }
+        }
+    }
+}
+
+wire {
+    sourcePath {
+        srcDir 'src/main/protos'
+    }
+
+    kotlin {
+        android = true
+    }
 }
 
 dependencies {
-    implementation 'org.jetbrains:annotations:23.0.0'
+    implementation 'net.swiftzer.semver:semver:1.3.0'
+    implementation 'com.godaddy.android.colorpicker:compose-color-picker:0.7.0'
 
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
-    api 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.2'
-    api 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.2'
+    implementation "com.airbnb.android:lottie:$lottie_version"
+    implementation "com.airbnb.android:lottie-compose:$lottie_version"
 
-    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.3.1'
+    implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-collections-immutable:0.3.6'
+//    implementation 'androidx.compose.material3:material3:1.0.0'
+
+    def media3_version = "1.1.1"
+    implementation "androidx.media3:media3-exoplayer:$media3_version"
+    implementation "androidx.media3:media3-ui:$media3_version"
+
+    def compose_destinations_version = '1.9.54'
+    implementation "io.github.raamcosta.compose-destinations:animations-core:$compose_destinations_version"
+    ksp "io.github.raamcosta.compose-destinations:ksp:$compose_destinations_version"
+
+    implementation "androidx.navigation:navigation-compose:2.7.4"
+
+    api "com.squareup.wire:wire-runtime:$wire_version"
+
+    def hilt_androidx_version = "1.0.0"
+    implementation "com.google.dagger:hilt-android:$hilt_version"
+    kapt "com.google.dagger:hilt-android-compiler:$hilt_version"
+    implementation "androidx.hilt:hilt-navigation-compose:$hilt_androidx_version"
+    kapt "androidx.hilt:hilt-compiler:$hilt_androidx_version"
+
+    def accompanist_version = '0.32.0'
+    implementation "com.google.accompanist:accompanist-drawablepainter:$accompanist_version"
+    implementation "com.google.accompanist:accompanist-insets-ui:$accompanist_version"
+    implementation "com.google.accompanist:accompanist-systemuicontroller:$accompanist_version"
+    implementation "com.google.accompanist:accompanist-placeholder-material:$accompanist_version"
+    implementation "com.google.accompanist:accompanist-webview:$accompanist_version"
+
+    def sketch_version = "3.2.5"
+    implementation "io.github.panpf.sketch3:sketch:$sketch_version"
+    implementation "io.github.panpf.sketch3:sketch-compose:$sketch_version"
+    implementation "io.github.panpf.sketch3:sketch-extensions:$sketch_version"
+    implementation "io.github.panpf.sketch3:sketch-gif-movie:$sketch_version"
+    implementation "io.github.panpf.sketch3:sketch-okhttp:$sketch_version"
+
+    def zoomimage_version = '1.0.0-beta03'
+    implementation "io.github.panpf.zoomimage:zoomimage-compose-sketch:$zoomimage_version"
+    implementation("io.github.panpf.zoomimage:zoomimage-view-sketch:$zoomimage_version")
+
+    def composeBom = platform("androidx.compose:compose-bom:$compose_bom_version")
+    implementation composeBom
+    androidTestImplementation composeBom
+
+    implementation 'androidx.compose.runtime:runtime-tracing:1.0.0-alpha03'
+    implementation 'androidx.compose.animation:animation'
+    implementation 'androidx.compose.animation:animation-graphics'
+    implementation 'androidx.compose.material:material'
+    implementation 'androidx.compose.material:material-icons-core'
+    // Optional - Add full set of material icons
+    implementation 'androidx.compose.material:material-icons-extended'
+    implementation 'androidx.compose.ui:ui-util'
+
+    // Android Studio Preview support
+    implementation 'androidx.compose.ui:ui-tooling-preview'
+    debugImplementation 'androidx.compose.ui:ui-tooling'
+
+    // UI Tests
+    androidTestImplementation 'androidx.compose.ui:ui-test-junit4'
+    debugImplementation 'androidx.compose.ui:ui-test-manifest'
+
+    implementation "com.google.android.material:compose-theme-adapter:1.2.1"
+    implementation "androidx.constraintlayout:constraintlayout-compose:1.0.1"
+
+    def activity_version = "1.8.0"
+
+    implementation "androidx.activity:activity-ktx:$activity_version"
+    implementation "androidx.activity:activity-compose:$activity_version"
+
+    implementation 'com.github.gzu-liyujiang:Android_CN_OAID:4.2.4'
+
+    implementation 'org.jetbrains:annotations:24.0.1'
+
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+    implementation "org.jetbrains.kotlin:kotlin-reflect:$kotlin_version"
+
+    api "org.jetbrains.kotlinx:kotlinx-coroutines-core:$coroutines_version"
+    api "org.jetbrains.kotlinx:kotlinx-coroutines-android:$coroutines_version"
+
+    def lifecycle_version = "2.6.2"
+
+    implementation "androidx.lifecycle:lifecycle-runtime-ktx:$lifecycle_version"
+    implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:$lifecycle_version"
+    implementation "androidx.lifecycle:lifecycle-viewmodel-compose:$lifecycle_version"
 
     //Local Files
     implementation fileTree(include: ["*.jar"], dir: "libs")
 
-    //滑动返回
-    implementation "me.imid.swipebacklayout.lib:library:1.3.0"
-
-    //兼容 Glide
-    implementation "com.android.support:support-annotations:28.0.0"
-    kapt "com.android.support:support-annotations:28.0.0"
-
     //AndroidX
-    implementation "androidx.appcompat:appcompat:1.3.1"
-    implementation "androidx.core:core-ktx:1.7.0"
-    implementation "androidx.annotation:annotation:1.3.0"
-    implementation "androidx.constraintlayout:constraintlayout:2.1.1"
-    implementation "androidx.preference:preference-ktx:1.1.1"
+    implementation "androidx.appcompat:appcompat:1.6.1"
+    implementation "androidx.annotation:annotation:1.7.0"
+    implementation "androidx.constraintlayout:constraintlayout:2.1.4"
+    implementation "androidx.core:core-ktx:1.12.0"
+    implementation 'androidx.core:core-splashscreen:1.0.1'
+    implementation "androidx.preference:preference-ktx:1.2.1"
     implementation "androidx.gridlayout:gridlayout:1.0.0"
-    implementation "androidx.browser:browser:1.3.0"
+    implementation "androidx.browser:browser:1.6.0"
     implementation "androidx.viewpager2:viewpager2:1.0.0"
     implementation "androidx.palette:palette-ktx:1.0.0"
-    implementation "androidx.window:window:1.0.0-beta03"
-    implementation "androidx.startup:startup-runtime:1.1.0"
-
+    implementation "androidx.window:window:1.1.0"
+    implementation "androidx.startup:startup-runtime:1.1.1"
+    implementation "androidx.datastore:datastore-preferences:1.0.0"
 
     //Test
     testImplementation "junit:junit:4.13.2"
-    androidTestImplementation "androidx.test:core:1.4.0"
-    androidTestImplementation "androidx.test.ext:junit:1.1.3"
-    androidTestImplementation "androidx.test:rules:1.4.0"
-    androidTestImplementation "androidx.test:runner:1.4.0"
-    androidTestImplementation "androidx.test.espresso:espresso-core:3.4.0"
+    androidTestImplementation "androidx.test:core:1.5.0"
+    androidTestImplementation "androidx.test.ext:junit:1.1.5"
+    androidTestImplementation "androidx.test:rules:1.5.0"
+    androidTestImplementation "androidx.test:runner:1.5.2"
+    androidTestImplementation "androidx.test.espresso:espresso-core:3.5.1"
 
     //Glide
     implementation "com.github.bumptech.glide:glide:$glide_version"
-    kapt "com.github.bumptech.glide:compiler:$glide_version"
+    ksp "com.github.bumptech.glide:ksp:$glide_version"
     implementation "com.github.bumptech.glide:okhttp3-integration:$glide_version"
 
-    implementation "com.google.android.material:material:1.4.0"
+    implementation "com.google.android.material:material:1.10.0"
 
-    implementation "com.squareup.okhttp3:okhttp:4.9.1"
+    implementation 'com.squareup.okhttp3:okhttp:4.11.0'
     implementation "com.squareup.retrofit2:retrofit:$retrofit_version"
     implementation "com.squareup.retrofit2:converter-gson:$retrofit_version"
+    implementation "com.squareup.retrofit2:converter-wire:$retrofit_version"
 
-    implementation 'com.google.code.gson:gson:2.9.0'
-    implementation "cn.dreamtobe.kpswitch:library:1.6.2"
+    implementation 'com.google.code.gson:gson:2.10.1'
+    implementation 'com.github.DSAppTeam:PanelSwitchHelper:v1.5.2'
     implementation "org.litepal.android:kotlin:3.0.0"
-    implementation "com.github.SheHuan:RecyclerViewAdapter:1.2.9"
-    implementation "com.davemorrissey.labs:subsampling-scale-image-view-androidx:3.10.0"
-    implementation "com.bm.photoview:library:2.0.7"
     implementation 'cn.jzvd:jiaozivideoplayer:7.7.2.3300'
-    implementation "com.jrummyapps:colorpicker:2.1.7"
+    implementation 'com.jaredrummler:colorpicker:1.1.0'
 
     implementation "com.scwang.smart:refresh-layout-kernel:2.0.1"
     implementation "com.scwang.smart:refresh-header-material:2.0.1"
 
     implementation 'com.github.lwj1994:Matisse:0.5.3-20220115'
-    implementation 'com.github.getActivity:XXPermissions:13.6'
+    implementation 'com.github.getActivity:XXPermissions:18.3'
     implementation "com.gyf.immersionbar:immersionbar:3.0.0"
 
-    implementation "com.github.yalantis:ucrop:2.2.7"
+    implementation "com.github.yalantis:ucrop:2.2.8"
 
     implementation "com.billy.android:pre-loader:2.1.0"
 
     implementation "com.jakewharton:butterknife:10.2.3"
     kapt "com.jakewharton:butterknife-compiler:10.2.3"
 
-    implementation ('com.alibaba.android:vlayout:1.3.0@aar') {
+    //noinspection GradleDependency
+    implementation ('com.alibaba.android:vlayout:1.2.40@aar') {
         transitive = true
     }
 
-    def appCenterSdkVersion = '4.4.3'
+    def appCenterSdkVersion = '5.0.2'
     implementation "com.microsoft.appcenter:appcenter-analytics:${appCenterSdkVersion}"
     implementation "com.microsoft.appcenter:appcenter-crashes:${appCenterSdkVersion}"
     implementation "com.microsoft.appcenter:appcenter-distribute:${appCenterSdkVersion}"

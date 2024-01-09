@@ -1,10 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:window="http://schemas.android.com/apk/res-auto">
+    <ActivityRule window:alwaysExpand="true">
+        <ActivityFilter window:activityName=".activities.PhotoViewActivity" />
+        <ActivityFilter window:activityName=".ui.page.photoview.PhotoViewActivity" />
+    </ActivityRule>
     <SplitPairRule
         window:splitRatio="0.5"
-        window:splitMinWidth="600dp"
-        window:finishPrimaryWithSecondary="false"
-        window:finishSecondaryWithPrimary="true">
+        window:finishPrimaryWithSecondary="never"
+        window:finishSecondaryWithPrimary="always"
+        window:splitMinWidthDp="600">
         <SplitPairFilter
             window:primaryActivityName=".activities.MainActivity"
             window:secondaryActivityName="*/*" />
@@ -16,7 +20,7 @@
             window:secondaryActivityName="*/*" />
         <SplitPairFilter
             window:primaryActivityName=".activities.ThreadActivity"
-            window:secondaryActivityName="*/*" />
+            window:secondaryActivityName=".activities.WebViewActivity" />
         <SplitPairFilter
             window:primaryActivityName=".activities.MessageActivity"
             window:secondaryActivityName=".activities.FloorActivity" />

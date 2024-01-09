@@ -43,8 +43,14 @@ class HistoryActivity : BaseActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         collapsingToolbar.title = title
         collapsingToolbar.isTitleEnabled = true
-        viewPagerAdapter.addFragment(HistoryFragment.newInstance(HistoryUtil.TYPE_THREAD), getString(R.string.title_history_thread))
-        viewPagerAdapter.addFragment(HistoryFragment.newInstance(HistoryUtil.TYPE_FORUM), getString(R.string.title_history_forum))
+        viewPagerAdapter.addFragment(
+            HistoryFragment.newInstance(HistoryUtil.TYPE_THREAD),
+            getString(R.string.title_history_thread)
+        )
+        viewPagerAdapter.addFragment(
+            HistoryFragment.newInstance(HistoryUtil.TYPE_FORUM),
+            getString(R.string.title_history_forum)
+        )
         viewPager.adapter = viewPagerAdapter
         tabLayout.setupWithViewPager(viewPager)
     }
@@ -72,7 +78,7 @@ class HistoryActivity : BaseActivity() {
         return when (item.itemId) {
             R.id.menu_delete -> {
                 HistoryUtil.deleteAll()
-                Toast.makeText(this, R.string.toast_delete_success, Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, R.string.toast_clear_success, Toast.LENGTH_SHORT).show()
                 refreshData()
                 true
             }

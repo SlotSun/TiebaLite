@@ -2,29 +2,33 @@
 <resources>
     <declare-styleable name="Theme">
         <attr name="colorPrimary" format="color" />
+        <attr name="colorNewPrimary" format="color" />
         <attr name="colorAccent" format="color" />
         <attr name="colorOnAccent" format="color" />
         <attr name="colorToolbar" format="color" />
         <attr name="colorToolbarItem" format="color" />
-        <attr name="color_toolbar_item_secondary" format="color" />
+        <attr name="colorToolbarItemSecondary" format="color" />
         <attr name="colorToolbarItemActive" format="color" />
-        <attr name="colorToolbarBar" format="color" />
-        <attr name="colorOnToolbarBar" format="color" />
+        <attr name="colorToolbarSurface" format="color" />
+        <attr name="colorOnToolbarSurface" format="color" />
         <attr name="colorNavBarSurface" format="color" />
         <attr name="colorOnNavBarSurface" format="color" />
         <attr name="colorText" format="color" />
         <attr name="colorTextOnPrimary" format="color" />
         <attr name="colorTextSecondary" format="color" />
         <attr name="color_text_disabled" format="color" />
-        <attr name="colorBg" format="color" />
+        <attr name="colorBackground" format="color" />
         <attr name="colorWindowBackground" format="color" />
+        <attr name="colorChip" format="color" />
+        <attr name="colorOnChip" format="color" />
         <attr name="colorUnselected" format="color" />
         <attr name="colorNavBar" format="color" />
         <attr name="colorFloorCard" format="color" />
         <attr name="colorCard" format="color" />
         <attr name="colorDivider" format="color" />
         <attr name="shadow_color" format="color" />
-        <attr name="color_swipe_refresh_layout_background" format="color" />
+        <attr name="colorIndicator" format="color" />
+        <attr name="colorPlaceholder" format="color" />
     </declare-styleable>
 
     <declare-styleable name="ShadowLayout">
@@ -112,6 +116,7 @@
         <attr name="switchBackgroundTint" format="color" />
         <attr name="thumbTint" format="color" />
         <attr name="trackTintList" format="color" />
+        <attr name="textColor" />
     </declare-styleable>
 
     <declare-styleable name="TintMaterialCardView">
@@ -146,6 +151,7 @@
     </declare-styleable>
 
     <declare-styleable name="TintUndoableEditText">
+        <attr name="cursorColor" format="color" />
         <attr name="hintTextColor" format="color" />
         <attr name="textColor" />
     </declare-styleable>
@@ -261,5 +267,21 @@
         <attr name="collapsedMarginTop" format="dimension" />
         <attr name="collapsedMarginEnd" format="dimension" />
         <attr name="collapsedMarginBottom" format="dimension" />
+    </declare-styleable>
+
+    <declare-styleable name="CircleProgressView">
+        <attr name="progressBackgroundColor" format="color" />
+        <attr name="progressColor" format="color" />
+        <attr name="progressTextColor" format="color" />
+        <attr name="showProgressText" format="boolean" />
+        <attr name="progressTextSize" format="dimension" />
+        <attr name="progressWidth" format="dimension" />
+        <attr name="progress" format="integer" />
+    </declare-styleable>
+
+    <declare-styleable name="TintCircleProgressView">
+        <attr name="progressBackgroundColor" />
+        <attr name="progressColor" />
+        <attr name="progressTextColor" />
     </declare-styleable>
 </resources>

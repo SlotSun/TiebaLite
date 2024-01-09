@@ -19,7 +19,7 @@ import androidx.viewpager2.widget.ViewPager2
 import androidx.viewpager2.widget.ViewPager2.OnPageChangeCallback
 import butterknife.BindView
 import com.google.android.material.bottomappbar.BottomAppBar
-import com.huanchengfly.tieba.post.BaseApplication.ScreenInfo
+import com.huanchengfly.tieba.post.App.ScreenInfo
 import com.huanchengfly.tieba.post.R
 import com.huanchengfly.tieba.post.adapters.PhotoViewAdapter
 import com.huanchengfly.tieba.post.api.TiebaApi.getInstance
@@ -27,19 +27,22 @@ import com.huanchengfly.tieba.post.api.models.PicPageBean
 import com.huanchengfly.tieba.post.api.models.PicPageBean.ImgInfoBean
 import com.huanchengfly.tieba.post.fragments.PhotoViewFragment.OnChangeBottomBarVisibilityListener
 import com.huanchengfly.tieba.post.models.PhotoViewBean
-import com.huanchengfly.tieba.post.ui.theme.utils.ThemeUtils
+import com.huanchengfly.tieba.post.ui.common.theme.utils.ThemeUtils
 import com.huanchengfly.tieba.post.utils.AnimUtil
 import com.huanchengfly.tieba.post.utils.ImageUtil
+import com.huanchengfly.tieba.post.utils.download
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
-import java.util.*
 
-class PhotoViewActivity : BaseActivity(), OnChangeBottomBarVisibilityListener, Toolbar.OnMenuItemClickListener {
+class PhotoViewActivity : BaseActivity(), OnChangeBottomBarVisibilityListener,
+    Toolbar.OnMenuItemClickListener {
     @BindView(R.id.counter)
     lateinit var mCounter: TextView
+
     @BindView(R.id.bottom_app_bar)
     lateinit var mAppBar: BottomAppBar
+
     @BindView(R.id.view_pager)
     lateinit var mViewPager: ViewPager2
 
@@ -59,52 +62,59 @@ class PhotoViewActivity : BaseActivity(), OnChangeBottomBarVisibilityListener, T
     private var objType: String? = null
 
     private fun loadMore() {
-        if (loadFinished) {
-            return
-        }
-        if (mLoading) {
+        if (loadFinished || mLoading || listOf(
+                forumId,
+                forumName,
+                threadId,
+                objType
+            ).any { it.isNullOrEmpty() }
+        ) {
             return
         }
         mLoading = true
         val lastBean = photoViewBeans[photoViewBeans.size - 1]
         getInstance().picPage(
-                forumId!!,
-                forumName!!,
-                threadId!!,
-                seeLz,
-                ImageUtil.getPicId(lastBean.originUrl), photoViewBeans.size.toString(),
-                objType!!,
-                false
+            forumId!!,
+            forumName!!,
+            threadId!!,
+            seeLz,
+            ImageUtil.getPicId(lastBean.originUrl), photoViewBeans.size.toString(),
+            objType!!,
+            false
         ).enqueue(object : Callback<PicPageBean?> {
             override fun onResponse(call: Call<PicPageBean?>, response: Response<PicPageBean?>) {
-                val data = response.body()!!
                 mLoading = false
-                amount = data.picAmount ?: "${photoViewBeans.size}"
+                val data = response.body()
+                amount = data?.picAmount ?: "${photoViewBeans.size}"
                 updateCounter(mViewPager.currentItem)
                 val picBeans: MutableList<PicPageBean.PicBean> = ArrayList()
                 val imgInfoBeans: MutableList<ImgInfoBean> = ArrayList()
-                if (data.picList?.isNotEmpty()!!) {
-                    val index = data.picList.last().overAllIndex?.toInt()
+                if (data?.picList?.isNotEmpty() == true) {
+                    val index = data.picList.last().overAllIndex.toInt()
                     if (index != null) {
                         loadFinished = index >= amount!!.toInt()
                     }
                     picBeans.addAll(data.picList)
                     picBeans.forEach {
-                        it.img?.original?.let { it1 -> imgInfoBeans.add(it1) }
+                        it.img.original.let { it1 -> imgInfoBeans.add(it1) }
                     }
-                    lastIndex = picBeans.first().overAllIndex?.toInt()!!
+                    lastIndex = picBeans.first().overAllIndex.toInt()
                     for (photoViewBean in photoViewBeans) {
-                        val ind = lastIndex - (photoViewBeans.size - 1 - photoViewBeans.indexOf(photoViewBean))
+                        val ind = lastIndex - (photoViewBeans.size - 1 - photoViewBeans.indexOf(
+                            photoViewBean
+                        ))
                         photoViewBean.index = ind.toString()
                     }
                     picBeans.removeAt(0)
                     imgInfoBeans.removeAt(0)
                     val beans = imgInfoBeans.mapIndexed { i, it ->
-                        PhotoViewBean(it.bigCdnSrc,
-                                it.originalSrc,
-                                (it.height ?: "0").toInt() > ScreenInfo.EXACT_SCREEN_HEIGHT,
-                                picBeans[i].overAllIndex,
-                                "2" == it.format)
+                        PhotoViewBean(
+                            it.bigCdnSrc,
+                            it.originalSrc,
+                            (it.height ?: "0").toInt() > ScreenInfo.EXACT_SCREEN_HEIGHT,
+                            picBeans[i].overAllIndex,
+                            "2" == it.format
+                        )
                     }.toMutableList()
                     mAdapter.insert(beans)
                     photoViewBeans = mAdapter.data
@@ -146,7 +156,11 @@ class PhotoViewActivity : BaseActivity(), OnChangeBottomBarVisibilityListener, T
         isFrs = intent.getBooleanExtra(EXTRA_IS_FRS, false)
         photoViewBeans = mutableListOf()
         startPosition = intent.getIntExtra(EXTRA_POSITION, 0)
-        val parcelables = intent.getParcelableArrayExtra(EXTRA_BEANS)!!
+        val parcelables = intent.getParcelableArrayExtra(EXTRA_BEANS)
+        if (parcelables == null) {
+            finish()
+            return
+        }
         photoViewBeans.addAll(parcelables.map { it as PhotoViewBean })
         amount = photoViewBeans.size.toString()
         mAdapter = PhotoViewAdapter(this, photoViewBeans)
@@ -154,7 +168,11 @@ class PhotoViewActivity : BaseActivity(), OnChangeBottomBarVisibilityListener, T
         mViewPager.setCurrentItem(startPosition, false)
         updateCounter()
         mViewPager.registerOnPageChangeCallback(object : OnPageChangeCallback() {
-            override fun onPageScrolled(position: Int, positionOffset: Float, positionOffsetPixels: Int) {
+            override fun onPageScrolled(
+                position: Int,
+                positionOffset: Float,
+                positionOffsetPixels: Int
+            ) {
                 onShow(true)
             }
 
@@ -188,8 +206,10 @@ class PhotoViewActivity : BaseActivity(), OnChangeBottomBarVisibilityListener, T
             mCounter.text = null
         } else if (isFrs && lastIndex > 0) {
             val index = photoViewBeans[position].index
-            mCounter.text = getString(R.string.tip_position, (index ?: position
-            + 1).toString(), amount)
+            mCounter.text = getString(
+                R.string.tip_position, ((index ?: (position
+                        + 1))).toString(), amount
+            )
         } else {
             mCounter.text = getString(R.string.tip_position, (position + 1).toString(), amount)
         }
@@ -204,18 +224,18 @@ class PhotoViewActivity : BaseActivity(), OnChangeBottomBarVisibilityListener, T
             return
         }
         AnimUtil.alphaIn(mAppBar)
-                .setListener(object : AnimatorListenerAdapter() {
-                    override fun onAnimationEnd(animation: Animator) {
-                        mAppBar.visibility = View.VISIBLE
-                    }
+            .setListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    mAppBar.visibility = View.VISIBLE
+                }
 
-                    override fun onAnimationEnd(animation: Animator, isReverse: Boolean) {
-                        if (autoHide) {
-                            handler.postDelayed(autoHideRunnable, DEFAULT_HIDE_DELAY.toLong())
-                        }
+                override fun onAnimationEnd(animation: Animator, isReverse: Boolean) {
+                    if (autoHide) {
+                        handler.postDelayed(autoHideRunnable, DEFAULT_HIDE_DELAY.toLong())
                     }
-                })
-                .start()
+                }
+            })
+            .start()
     }
 
     override fun onHide() {
@@ -223,12 +243,12 @@ class PhotoViewActivity : BaseActivity(), OnChangeBottomBarVisibilityListener, T
             return
         }
         AnimUtil.alphaOut(mAppBar)
-                .setListener(object : AnimatorListenerAdapter() {
-                    override fun onAnimationEnd(animation: Animator) {
-                        mAppBar.visibility = View.GONE
-                    }
-                })
-                .start()
+            .setListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    mAppBar.visibility = View.GONE
+                }
+            })
+            .start()
     }
 
     override fun onMenuItemClick(item: MenuItem): Boolean {
@@ -236,17 +256,29 @@ class PhotoViewActivity : BaseActivity(), OnChangeBottomBarVisibilityListener, T
             R.id.menu_toggle_orientation -> {
                 item.setIcon(if (mViewPager.orientation == ViewPager2.ORIENTATION_HORIZONTAL) R.drawable.ic_round_view_day_white else R.drawable.ic_round_view_carousel_white)
                 item.setTitle(if (mViewPager.orientation == ViewPager2.ORIENTATION_HORIZONTAL) R.string.title_comic_mode_on else R.string.title_comic_mode)
-                Toast.makeText(this, if (mViewPager.orientation == ViewPager2.ORIENTATION_HORIZONTAL) R.string.toast_comic_mode_on else R.string.toast_comic_mode_off, Toast.LENGTH_SHORT).show()
-                mViewPager.orientation = if (mViewPager.orientation == ViewPager2.ORIENTATION_HORIZONTAL) ViewPager2.ORIENTATION_VERTICAL else ViewPager2.ORIENTATION_HORIZONTAL
+                Toast.makeText(
+                    this,
+                    if (mViewPager.orientation == ViewPager2.ORIENTATION_HORIZONTAL) R.string.toast_comic_mode_on else R.string.toast_comic_mode_off,
+                    Toast.LENGTH_SHORT
+                ).show()
+                mViewPager.orientation =
+                    if (mViewPager.orientation == ViewPager2.ORIENTATION_HORIZONTAL) ViewPager2.ORIENTATION_VERTICAL else ViewPager2.ORIENTATION_HORIZONTAL
                 return true
             }
             R.id.menu_save_image -> {
-                ImageUtil.download(this, mAdapter.getBean(mViewPager.currentItem).originUrl, mAdapter.getBean(mViewPager.currentItem).isGif)
+                ImageUtil.download(
+                    this,
+                    mAdapter.getBean(mViewPager.currentItem).originUrl
+                )
                 return true
             }
             R.id.menu_share -> {
                 Toast.makeText(this, R.string.toast_preparing_share_pic, Toast.LENGTH_SHORT).show()
-                ImageUtil.download(this, mAdapter.getBean(mViewPager.currentItem).originUrl, mAdapter.getBean(mViewPager.currentItem).isGif, true) { uri: Uri? ->
+                ImageUtil.download(
+                    this,
+                    mAdapter.getBean(mViewPager.currentItem).originUrl,
+                    true
+                ) { uri: Uri ->
                     val intent = Intent(Intent.ACTION_SEND)
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                         intent.putExtra(Intent.EXTRA_STREAM, uri)
@@ -299,22 +331,27 @@ class PhotoViewActivity : BaseActivity(), OnChangeBottomBarVisibilityListener, T
         @JvmStatic
         @JvmOverloads
         fun launch(context: Context, photoViewBeans: Array<PhotoViewBean>, position: Int = 0) {
-            context.startActivity(Intent(context, PhotoViewActivity::class.java)
+            context.startActivity(
+                Intent(context, PhotoViewActivity::class.java)
                     .putExtra(EXTRA_BEANS, photoViewBeans)
                     .putExtra(EXTRA_POSITION, position)
-                    .putExtra(EXTRA_IS_FRS, false))
+                    .putExtra(EXTRA_IS_FRS, false)
+            )
         }
 
         @JvmStatic
-        fun launch(context: Context,
-                   photoViewBeans: Array<PhotoViewBean?>?,
-                   position: Int,
-                   forumName: String?,
-                   forumId: String?,
-                   threadId: String?,
-                   seeLz: Boolean,
-                   objType: String?) {
-            context.startActivity(Intent(context, PhotoViewActivity::class.java)
+        fun launch(
+            context: Context,
+            photoViewBeans: Array<PhotoViewBean?>?,
+            position: Int,
+            forumName: String?,
+            forumId: String?,
+            threadId: String?,
+            seeLz: Boolean,
+            objType: String?
+        ) {
+            context.startActivity(
+                Intent(context, PhotoViewActivity::class.java)
                     .putExtra(EXTRA_BEANS, photoViewBeans)
                     .putExtra(EXTRA_POSITION, position)
                     .putExtra(EXTRA_IS_FRS, true)
@@ -322,7 +359,8 @@ class PhotoViewActivity : BaseActivity(), OnChangeBottomBarVisibilityListener, T
                     .putExtra(EXTRA_FORUM_ID, forumId)
                     .putExtra(EXTRA_THREAD_ID, threadId)
                     .putExtra(EXTRA_SEE_LZ, seeLz)
-                    .putExtra(EXTRA_OBJ_TYPE, objType))
+                    .putExtra(EXTRA_OBJ_TYPE, objType)
+            )
         }
     }
 }

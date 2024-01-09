@@ -1,12 +1,10 @@
 package com.huanchengfly.tieba.post.api.retrofit.interceptors
 
-import android.util.Log
 import com.google.gson.Gson
 import com.huanchengfly.tieba.post.api.models.CommonResponse
 import com.huanchengfly.tieba.post.api.retrofit.exception.TiebaApiException
 import okhttp3.Interceptor
 import okhttp3.Response
-import java.nio.charset.StandardCharsets
 
 object FailureResponseInterceptor : Interceptor {
     private val gson = Gson()
@@ -24,34 +22,21 @@ object FailureResponseInterceptor : Interceptor {
             contentType.charset(Charsets.UTF_8)!!
         }
 
-        val inputStream = body.source().also {
+        val inputStreamReader = body.source().also {
             it.request(Long.MAX_VALUE)
-        }.buffer.clone().inputStream()
+        }.buffer.clone().inputStream().reader(charset)
 
-        val length: Int = inputStream.available()
-        val buffer = ByteArray(length)
-        inputStream.read(buffer)
-        val bodyString = String(buffer, StandardCharsets.UTF_8)
+        val commonResponse = inputStreamReader.use {
+            runCatching {
+                gson.fromJson<CommonResponse>(
+                    gson.newJsonReader(inputStreamReader),
+                    CommonResponse::class.java
+                )
+            }.getOrNull()
+        } ?: return response
 
-        Log.i("ResponseI", bodyString)
-
-        val inputStreamReader = inputStream.reader(charset)
-
-        val jsonObject = try {
-            gson.fromJson<CommonResponse>(
-                gson.newJsonReader(inputStreamReader),
-                CommonResponse::class.java
-            )
-        } catch (exception: Exception) {
-            //如果返回内容解析失败, 说明它不是一个合法的 json
-            //如果在拦截器抛出 MalformedJsonException 会导致 Retrofit 的异步请求一直卡着直到超时
-            return response
-        } finally {
-            inputStreamReader.close()
-        }
-
-        if (jsonObject?.errorCode != null && jsonObject.errorCode != 0) {
-            throw TiebaApiException(jsonObject)
+        if (commonResponse.errorCode != null && commonResponse.errorCode != 0) {
+            throw TiebaApiException(commonResponse)
         }
         return response
     }

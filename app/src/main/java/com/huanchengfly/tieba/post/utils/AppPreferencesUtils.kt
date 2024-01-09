@@ -1,141 +1,242 @@
 package com.huanchengfly.tieba.post.utils
 
 import android.content.Context
-import android.content.SharedPreferences
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import com.huanchengfly.tieba.post.dataStore
+import com.huanchengfly.tieba.post.getBoolean
+import com.huanchengfly.tieba.post.getFloat
+import com.huanchengfly.tieba.post.getInt
+import com.huanchengfly.tieba.post.getLong
+import com.huanchengfly.tieba.post.getString
 import com.huanchengfly.tieba.post.utils.ThemeUtil.TRANSLUCENT_THEME_LIGHT
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import java.lang.ref.WeakReference
 import kotlin.properties.ReadWriteProperty
 import kotlin.reflect.KProperty
 
 
-open class AppPreferencesUtils(context: Context) {
-    private val preferences: SharedPreferences =
-        context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+open class AppPreferencesUtils private constructor(ctx: Context) {
+    companion object {
+        private var instance: AppPreferencesUtils? = null
 
-    var autoSign by SharedPreferenceDelegates.boolean(defaultValue = false, key = "auto_sign")
+        fun getInstance(context: Context): AppPreferencesUtils {
+            return instance ?: AppPreferencesUtils(context).also {
+                instance = it
+            }
+        }
+    }
 
-    var autoSignTime by SharedPreferenceDelegates.string(
+    private val contextWeakReference: WeakReference<Context> = WeakReference(ctx)
+
+    private val context: Context
+        get() = contextWeakReference.get()!!
+
+    private val preferencesDataStore: DataStore<Preferences>
+        get() = context.dataStore
+
+    private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    var userLikeLastRequestUnix by DataStoreDelegates.long(defaultValue = 0L)
+
+    var ignoreBatteryOptimizationsDialog by DataStoreDelegates.boolean(defaultValue = false)
+
+    var appIcon by DataStoreDelegates.string(
+        defaultValue = LauncherIcons.DEFAULT_ICON,
+        key = AppIconUtil.PREF_KEY_APP_ICON
+    )
+
+    var useThemedIcon by DataStoreDelegates.boolean(defaultValue = false)
+
+    var autoSign by DataStoreDelegates.boolean(defaultValue = false, key = "auto_sign")
+
+    var autoSignTime by DataStoreDelegates.string(
         defaultValue = "09:00",
         key = "auto_sign_time"
     )
 
-    var checkCIUpdate by SharedPreferenceDelegates.boolean(
+    var blockVideo by DataStoreDelegates.boolean(defaultValue = false)
+
+    var checkCIUpdate by DataStoreDelegates.boolean(
         defaultValue = false
     )
 
-    var collectThreadSeeLz by SharedPreferenceDelegates.boolean(
+    var collectThreadSeeLz by DataStoreDelegates.boolean(
         defaultValue = true,
         key = "collect_thread_see_lz"
     )
 
-    var customPrimaryColor by SharedPreferenceDelegates.string(key = "custom_primary_color")
+    var collectThreadDescSort by DataStoreDelegates.boolean(
+        defaultValue = false,
+        key = "collect_thread_desc_sort"
+    )
 
-    var customStatusBarFontDark by SharedPreferenceDelegates.boolean(
+    var customPrimaryColor by DataStoreDelegates.string(key = "custom_primary_color")
+
+    var customStatusBarFontDark by DataStoreDelegates.boolean(
         defaultValue = false,
         key = "custom_status_bar_font_dark"
     )
 
-    var customToolbarPrimaryColor by SharedPreferenceDelegates.boolean(
-        defaultValue = true,
+    var toolbarPrimaryColor by DataStoreDelegates.boolean(
+        defaultValue = false,
         key = "custom_toolbar_primary_color"
     )
 
-    var defaultSortType by SharedPreferenceDelegates.string(
+    var defaultSortType by DataStoreDelegates.string(
         key = "default_sort_type",
         defaultValue = "0"
     )
 
-    var darkTheme by SharedPreferenceDelegates.string(key = "dark_theme", defaultValue = "dark")
+    var darkTheme by DataStoreDelegates.string(key = "dark_theme", defaultValue = "grey_dark")
 
-    var followSystemNight by SharedPreferenceDelegates.boolean(
+    var enableNewUi by DataStoreDelegates.boolean(key = "enable_new_ui", defaultValue = true)
+
+    var useDynamicColorTheme by DataStoreDelegates.boolean(defaultValue = false)
+
+    var followSystemNight by DataStoreDelegates.boolean(
         defaultValue = true,
         key = "follow_system_night"
     )
 
-    var fontScale by SharedPreferenceDelegates.float(defaultValue = 1.0f)
+    var fontScale by DataStoreDelegates.float(defaultValue = 1.0f)
 
-    var forumFabFunction by SharedPreferenceDelegates.string(defaultValue = "post")
+    var forumFabFunction by DataStoreDelegates.string(defaultValue = "post")
 
-    var hideExplore by SharedPreferenceDelegates.boolean(defaultValue = false)
+    var hideBlockedContent by DataStoreDelegates.boolean(defaultValue = false)
 
-    var hideForumIntroAndStat by SharedPreferenceDelegates.boolean(defaultValue = false)
+    var hideExplore by DataStoreDelegates.boolean(defaultValue = false)
 
-    var homePageScroll by SharedPreferenceDelegates.boolean(defaultValue = false)
+    var hideForumIntroAndStat by DataStoreDelegates.boolean(defaultValue = false)
 
-    var imageLoadType by SharedPreferenceDelegates.string(
+    var hideMedia by DataStoreDelegates.boolean(defaultValue = false)
+
+    var hideReply by DataStoreDelegates.boolean(defaultValue = false)
+
+    var homePageScroll by DataStoreDelegates.boolean(defaultValue = false)
+
+    var imageDarkenWhenNightMode by DataStoreDelegates.boolean(defaultValue = true)
+
+    var imageLoadType by DataStoreDelegates.string(
         key = "image_load_type",
         defaultValue = "0"
     )
 
-    var listItemsBackgroundIntermixed by SharedPreferenceDelegates.boolean(defaultValue = true)
+    var imeHeight by DataStoreDelegates.int(defaultValue = 800)
 
-    var listSingle by SharedPreferenceDelegates.boolean(defaultValue = false)
+    var liftUpBottomBar by DataStoreDelegates.boolean(defaultValue = true)
 
-    var littleTail by SharedPreferenceDelegates.string(key = "little_tail")
+    var listItemsBackgroundIntermixed by DataStoreDelegates.boolean(defaultValue = true)
 
-    var loadPictureWhenScroll by SharedPreferenceDelegates.boolean(defaultValue = true)
+    var listSingle by DataStoreDelegates.boolean(defaultValue = false)
 
-    var oldTheme by SharedPreferenceDelegates.string(key = "old_theme")
+    var littleTail by DataStoreDelegates.string(key = "little_tail")
 
-    var oksignSlowMode by SharedPreferenceDelegates.boolean(
+    var loadPictureWhenScroll by DataStoreDelegates.boolean(defaultValue = true)
+
+    var oldTheme by DataStoreDelegates.string(key = "old_theme")
+
+    var oksignSlowMode by DataStoreDelegates.boolean(
         defaultValue = true,
         key = "oksign_slow_mode"
     )
 
-    var postOrReplyWarning by SharedPreferenceDelegates.boolean(defaultValue = true)
+    var oksignUseOfficialOksign by DataStoreDelegates.boolean(
+        defaultValue = true,
+        key = "oksign_use_official_oksign"
+    )
 
-    var radius by SharedPreferenceDelegates.int(defaultValue = 8)
+    var picWatermarkType by DataStoreDelegates.string(
+        defaultValue = "2",
+        key = "pic_watermark_type",
+    )
 
-    var signDay by SharedPreferenceDelegates.int(defaultValue = -1, key = "sign_day")
+    var postOrReplyWarning by DataStoreDelegates.boolean(defaultValue = true)
 
-    var showBothUsernameAndNickname by SharedPreferenceDelegates.boolean(
+    var radius by DataStoreDelegates.int(defaultValue = 8)
+
+    var signDay by DataStoreDelegates.int(defaultValue = -1, key = "sign_day")
+
+    var showBlockTip by DataStoreDelegates.boolean(defaultValue = true)
+
+    var showBothUsernameAndNickname by DataStoreDelegates.boolean(
         defaultValue = false,
         key = "show_both_username_and_nickname"
     )
 
-    var showShortcutInThread by SharedPreferenceDelegates.boolean(defaultValue = true)
+    var showExperimentalFeatures by DataStoreDelegates.boolean(defaultValue = false)
 
-    var showTopForumInNormalList by SharedPreferenceDelegates.boolean(
+    var showShortcutInThread by DataStoreDelegates.boolean(defaultValue = true)
+
+    var showTopForumInNormalList by DataStoreDelegates.boolean(
         defaultValue = true,
         key = "show_top_forum_in_normal_list"
     )
 
-    var statusBarDarker by SharedPreferenceDelegates.boolean(
+    var statusBarDarker by DataStoreDelegates.boolean(
         defaultValue = true,
         key = "status_bar_darker"
     )
 
-    var theme by SharedPreferenceDelegates.string(defaultValue = ThemeUtil.THEME_WHITE)
+    var theme by DataStoreDelegates.string(defaultValue = ThemeUtil.THEME_DEFAULT)
 
-    var translucentBackgroundAlpha by SharedPreferenceDelegates.int(
+    var translucentBackgroundAlpha by DataStoreDelegates.int(
         defaultValue = 255,
         key = "translucent_background_alpha"
     )
 
-    var translucentBackgroundBlur by SharedPreferenceDelegates.int(key = "translucent_background_blur")
+    var translucentBackgroundBlur by DataStoreDelegates.int(key = "translucent_background_blur")
 
-    var translucentBackgroundTheme by SharedPreferenceDelegates.int(
+    var translucentBackgroundTheme by DataStoreDelegates.int(
         defaultValue = TRANSLUCENT_THEME_LIGHT,
         key = "translucent_background_theme"
     )
 
-    var translucentThemeBackgroundPath by SharedPreferenceDelegates.string(key = "translucent_theme_background_path")
+    var translucentThemeBackgroundPath by DataStoreDelegates.string(key = "translucent_theme_background_path")
 
-    var translucentPrimaryColor by SharedPreferenceDelegates.string(key = "translucent_primary_color")
+    var translucentPrimaryColor by DataStoreDelegates.string(key = "translucent_primary_color")
 
-    var useCustomTabs by SharedPreferenceDelegates.boolean(
+    var useCustomTabs by DataStoreDelegates.boolean(
         defaultValue = true,
         key = "use_custom_tabs"
     )
 
-    var useWebView by SharedPreferenceDelegates.boolean(defaultValue = true, key = "use_webview")
+    var useWebView by DataStoreDelegates.boolean(defaultValue = true, key = "use_webview")
 
-    private object SharedPreferenceDelegates {
+    private object DataStoreDelegates {
         fun int(
             defaultValue: Int = 0,
             key: String? = null
         ) = object : ReadWriteProperty<AppPreferencesUtils, Int> {
+            private var prefValue = defaultValue
+            private var initialized = false
+
             override fun getValue(thisRef: AppPreferencesUtils, property: KProperty<*>): Int {
-                return thisRef.preferences.getInt(key ?: property.name, defaultValue)
+                val finalKey = key ?: property.name
+                if (!initialized) {
+                    initialized = true
+                    prefValue = thisRef.preferencesDataStore.getInt(finalKey, defaultValue)
+                    thisRef.coroutineScope.launch {
+                        thisRef.preferencesDataStore.data
+                            .map { it[intPreferencesKey(finalKey)] }
+                            .distinctUntilChanged()
+                            .collect {
+                                prefValue = it ?: defaultValue
+                            }
+                    }
+                }
+                return prefValue
             }
 
             override fun setValue(
@@ -143,107 +244,176 @@ open class AppPreferencesUtils(context: Context) {
                 property: KProperty<*>,
                 value: Int
             ) {
-                thisRef.preferences.edit().putInt(key ?: property.name, value).apply()
+                prefValue = value
+                thisRef.coroutineScope.launch {
+                    thisRef.preferencesDataStore.edit {
+                        it[intPreferencesKey(key ?: property.name)] = value
+                    }
+                }
             }
         }
-
-        fun long(defaultValue: Long = 0L) =
-            object : ReadWriteProperty<AppPreferencesUtils, Long> {
-                override fun getValue(
-                    thisRef: AppPreferencesUtils,
-                    property: KProperty<*>
-                ): Long {
-                    return thisRef.preferences.getLong(property.name, defaultValue)
-                }
-
-                override fun setValue(
-                    thisRef: AppPreferencesUtils,
-                    property: KProperty<*>,
-                    value: Long
-                ) {
-                    thisRef.preferences.edit().putLong(property.name, value).apply()
-                }
-            }
-
-        fun boolean(
-            defaultValue: Boolean = false,
-            key: String? = null
-        ) =
-            object : ReadWriteProperty<AppPreferencesUtils, Boolean> {
-                override fun getValue(
-                    thisRef: AppPreferencesUtils,
-                    property: KProperty<*>
-                ): Boolean {
-                    return thisRef.preferences.getBoolean(key ?: property.name, defaultValue)
-                }
-
-                override fun setValue(
-                    thisRef: AppPreferencesUtils,
-                    property: KProperty<*>,
-                    value: Boolean
-                ) {
-                    thisRef.preferences.edit().putBoolean(key ?: property.name, value).apply()
-                }
-            }
-
-        fun float(defaultValue: Float = 0.0f) =
-            object : ReadWriteProperty<AppPreferencesUtils, Float> {
-                override fun getValue(
-                    thisRef: AppPreferencesUtils,
-                    property: KProperty<*>
-                ): Float {
-                    return thisRef.preferences.getFloat(property.name, defaultValue)
-                }
-
-                override fun setValue(
-                    thisRef: AppPreferencesUtils,
-                    property: KProperty<*>,
-                    value: Float
-                ) {
-                    thisRef.preferences.edit().putFloat(property.name, value).apply()
-                }
-            }
 
         fun string(
             defaultValue: String? = null,
             key: String? = null
-        ) =
-            object : ReadWriteProperty<AppPreferencesUtils, String?> {
-                override fun getValue(
-                    thisRef: AppPreferencesUtils,
-                    property: KProperty<*>
-                ): String? {
-                    return thisRef.preferences.getString(key ?: property.name, defaultValue)
-                }
+        ) = object : ReadWriteProperty<AppPreferencesUtils, String?> {
+            private var prefValue = defaultValue
+            private var initialized = false
 
-                override fun setValue(
-                    thisRef: AppPreferencesUtils,
-                    property: KProperty<*>,
-                    value: String?
-                ) {
-                    thisRef.preferences.edit().putString(key ?: property.name, value).apply()
+            override fun getValue(thisRef: AppPreferencesUtils, property: KProperty<*>): String? {
+                val finalKey = key ?: property.name
+                if (!initialized) {
+                    initialized = true
+                    prefValue = thisRef.preferencesDataStore.getString(finalKey)
+                        ?: defaultValue
+                    thisRef.coroutineScope.launch {
+                        thisRef.preferencesDataStore.data
+                            .map { it[stringPreferencesKey(finalKey)] }
+                            .distinctUntilChanged()
+                            .collect {
+                                prefValue = it ?: defaultValue
+                            }
+                    }
                 }
+                return prefValue
             }
 
-        fun stringSet(defaultValue: Set<String>? = null) =
-            object : ReadWriteProperty<AppPreferencesUtils, Set<String>?> {
-                override fun getValue(
-                    thisRef: AppPreferencesUtils,
-                    property: KProperty<*>
-                ): Set<String>? {
-                    return thisRef.preferences.getStringSet(property.name, defaultValue)
-                }
-
-                override fun setValue(
-                    thisRef: AppPreferencesUtils,
-                    property: KProperty<*>,
-                    value: Set<String>?
-                ) {
-                    thisRef.preferences.edit().putStringSet(property.name, value).apply()
+            override fun setValue(
+                thisRef: AppPreferencesUtils,
+                property: KProperty<*>,
+                value: String?
+            ) {
+                prefValue = value
+                thisRef.coroutineScope.launch {
+                    thisRef.preferencesDataStore.edit {
+                        if (value == null) {
+                            it.remove(stringPreferencesKey(key ?: property.name))
+                        } else {
+                            it[stringPreferencesKey(key ?: property.name)] = value
+                        }
+                    }
                 }
             }
+        }
+
+        fun float(
+            defaultValue: Float = 0F,
+            key: String? = null
+        ) = object : ReadWriteProperty<AppPreferencesUtils, Float> {
+            private var prefValue = defaultValue
+            private var initialized = false
+
+            override fun getValue(thisRef: AppPreferencesUtils, property: KProperty<*>): Float {
+                val finalKey = key ?: property.name
+                if (!initialized) {
+                    initialized = true
+                    prefValue =
+                        thisRef.preferencesDataStore.getFloat(finalKey, defaultValue)
+                    thisRef.coroutineScope.launch {
+                        thisRef.preferencesDataStore.data
+                            .map { it[floatPreferencesKey(finalKey)] }
+                            .distinctUntilChanged()
+                            .collect {
+                                prefValue = it ?: defaultValue
+                            }
+                    }
+                }
+                return prefValue
+            }
+
+            override fun setValue(
+                thisRef: AppPreferencesUtils,
+                property: KProperty<*>,
+                value: Float
+            ) {
+                prefValue = value
+                thisRef.coroutineScope.launch {
+                    thisRef.preferencesDataStore.edit {
+                        it[floatPreferencesKey(key ?: property.name)] = value
+                    }
+                }
+            }
+        }
+
+        fun long(
+            defaultValue: Long = 0L,
+            key: String? = null
+        ) = object : ReadWriteProperty<AppPreferencesUtils, Long> {
+            private var prefValue = defaultValue
+            private var initialized = false
+
+            override fun getValue(thisRef: AppPreferencesUtils, property: KProperty<*>): Long {
+                val finalKey = key ?: property.name
+                if (!initialized) {
+                    initialized = true
+                    prefValue =
+                        thisRef.preferencesDataStore.getLong(finalKey, defaultValue)
+                    thisRef.coroutineScope.launch {
+                        thisRef.preferencesDataStore.data
+                            .map { it[longPreferencesKey(finalKey)] }
+                            .distinctUntilChanged()
+                            .collect {
+                                prefValue = it ?: defaultValue
+                            }
+                    }
+                }
+                return prefValue
+            }
+
+            override fun setValue(
+                thisRef: AppPreferencesUtils,
+                property: KProperty<*>,
+                value: Long
+            ) {
+                prefValue = value
+                thisRef.coroutineScope.launch {
+                    thisRef.preferencesDataStore.edit {
+                        it[longPreferencesKey(key ?: property.name)] = value
+                    }
+                }
+            }
+        }
+
+        fun boolean(
+            defaultValue: Boolean = false,
+            key: String? = null
+        ) = object : ReadWriteProperty<AppPreferencesUtils, Boolean> {
+            private var prefValue = defaultValue
+            private var initialized = false
+
+            override fun getValue(thisRef: AppPreferencesUtils, property: KProperty<*>): Boolean {
+                val finalKey = key ?: property.name
+                if (!initialized) {
+                    initialized = true
+                    prefValue =
+                        thisRef.preferencesDataStore.getBoolean(finalKey, defaultValue)
+                    thisRef.coroutineScope.launch {
+                        thisRef.preferencesDataStore.data
+                            .map { it[booleanPreferencesKey(finalKey)] }
+                            .distinctUntilChanged()
+                            .collect {
+                                prefValue = it ?: defaultValue
+                            }
+                    }
+                }
+                return prefValue
+            }
+
+            override fun setValue(
+                thisRef: AppPreferencesUtils,
+                property: KProperty<*>,
+                value: Boolean
+            ) {
+                prefValue = value
+                thisRef.coroutineScope.launch {
+                    thisRef.preferencesDataStore.edit {
+                        it[booleanPreferencesKey(key ?: property.name)] = value
+                    }
+                }
+            }
+        }
     }
 }
 
 val Context.appPreferences: AppPreferencesUtils
-    get() = AppPreferencesUtils(this)
+    get() = AppPreferencesUtils.getInstance(this)

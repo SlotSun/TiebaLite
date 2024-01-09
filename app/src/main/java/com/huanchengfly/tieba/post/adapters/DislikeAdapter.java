@@ -11,16 +11,16 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.huanchengfly.tieba.post.R;
 import com.huanchengfly.tieba.post.api.models.PersonalizedBean;
 import com.huanchengfly.tieba.post.components.MyViewHolder;
-import com.huanchengfly.tieba.post.ui.theme.utils.ThemeUtils;
+import com.huanchengfly.tieba.post.ui.common.theme.utils.ThemeUtils;
 import com.huanchengfly.tieba.post.utils.ThemeUtil;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class DislikeAdapter extends RecyclerView.Adapter<MyViewHolder> {
-    private Context mContext;
-    private List<PersonalizedBean.DislikeResourceBean> beans;
-    private List<String> selectedIds;
+    private final Context mContext;
+    private final List<PersonalizedBean.DislikeResourceBean> beans;
+    private final List<String> selectedIds;
 
     public DislikeAdapter(Context context, List<PersonalizedBean.DislikeResourceBean> beans) {
         this.mContext = context;

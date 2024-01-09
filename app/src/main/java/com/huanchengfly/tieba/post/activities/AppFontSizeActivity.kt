@@ -12,8 +12,8 @@ import com.google.android.material.appbar.CollapsingToolbarLayout
 import com.huanchengfly.tieba.post.*
 import com.huanchengfly.tieba.post.adapters.ChatBubbleStyleAdapter
 import com.huanchengfly.tieba.post.components.MyLinearLayoutManager
+import com.huanchengfly.tieba.post.ui.widgets.RulerSeekBar
 import com.huanchengfly.tieba.post.utils.ThemeUtil
-import com.huanchengfly.tieba.post.widgets.RulerSeekBar
 
 
 class AppFontSizeActivity : BaseActivity() {
@@ -85,8 +85,10 @@ class AppFontSizeActivity : BaseActivity() {
         if (!finished && oldFontSize != appPreferences.fontScale) {
             finished = true
             toastShort(R.string.toast_after_change_will_restart)
-            BaseApplication.instance.removeAllActivity()
-            goToActivity<MainActivity>()
+            App.INSTANCE.removeAllActivity()
+            packageManager.getLaunchIntentForPackage(packageName)?.let {
+                startActivity(it)
+            }
         }
         super.finish()
     }

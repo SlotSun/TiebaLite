@@ -1,5 +1,6 @@
 package com.huanchengfly.tieba.post.utils
 
+import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -9,17 +10,31 @@ import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
 import android.net.Uri
+import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
 import android.view.View
+import androidx.annotation.ColorInt
 import androidx.browser.customtabs.CustomTabColorSchemeParams
 import androidx.browser.customtabs.CustomTabsIntent
+import androidx.core.content.pm.ShortcutInfoCompat
+import androidx.core.content.pm.ShortcutManagerCompat
+import androidx.core.graphics.drawable.IconCompat
+import com.github.panpf.sketch.request.LoadRequest
+import com.github.panpf.sketch.request.LoadResult
 import com.google.android.material.snackbar.Snackbar
-import com.huanchengfly.tieba.post.BaseApplication
+import com.huanchengfly.tieba.post.App
 import com.huanchengfly.tieba.post.R
+import com.huanchengfly.tieba.post.activities.ThreadActivity
 import com.huanchengfly.tieba.post.activities.WebViewActivity
 import com.huanchengfly.tieba.post.api.retrofit.exception.TiebaException
+import com.huanchengfly.tieba.post.dataStore
 import com.huanchengfly.tieba.post.dpToPxFloat
-import com.huanchengfly.tieba.post.ui.theme.utils.ColorStateListUtils
-import com.huanchengfly.tieba.post.ui.theme.utils.ThemeUtils
+import com.huanchengfly.tieba.post.getBoolean
+import com.huanchengfly.tieba.post.goToActivity
+import com.huanchengfly.tieba.post.toastShort
+import com.huanchengfly.tieba.post.ui.common.theme.utils.ColorStateListUtils
+import com.huanchengfly.tieba.post.ui.common.theme.utils.ThemeUtils
 import com.huanchengfly.tieba.post.utils.Util.createSnackbar
 
 @JvmOverloads
@@ -87,7 +102,7 @@ fun getRadiusDrawable(
     return if (ripple)
         wrapRipple(
             Util.getColorByAttr(
-                BaseApplication.instance,
+                App.INSTANCE,
                 R.attr.colorControlHighlight,
                 R.color.transparent
             ), drawable
@@ -140,7 +155,36 @@ fun launchUrl(context: Context, url: String) {
     if (host == null || scheme == null || path == null) {
         return
     }
+    if (scheme == "tiebaclient") {
+        val action = uri.getQueryParameter("action")
+        when (action) {
+            "preview_file" -> {
+                val realUrl = uri.getQueryParameter("url")
+                if (realUrl.isNullOrEmpty()) {
+                    return
+                }
+                launchUrl(context, realUrl)
+            }
+            else -> {
+                context.toastShort(R.string.toast_feature_unavailable)
+            }
+        }
+        return
+    }
     if (!path.contains("android_asset")) {
+        if (path == "/mo/q/checkurl") {
+            launchUrl(
+                context,
+                uri.getQueryParameter("url").toString().replace("http://https://", "https://")
+            )
+            return
+        }
+        if (host == "tieba.baidu.com" && path.startsWith("/p/")) {
+            context.goToActivity<ThreadActivity> {
+                putExtra("url", url)
+            }
+            return
+        }
         val isTiebaLink =
             host.contains("tieba.baidu.com") || host.contains("wappass.baidu.com") || host.contains(
                 "ufosdk.baidu.com"
@@ -192,4 +236,64 @@ fun showErrorSnackBar(view: View, throwable: Throwable) {
                 .show()
         }
         .show()
+}
+
+fun calcStatusBarColorInt(context: Context, @ColorInt originColor: Int): Int {
+    var darkerStatusBar = true
+    val isToolbarPrimaryColor =
+        context.dataStore.getBoolean(ThemeUtil.KEY_CUSTOM_TOOLBAR_PRIMARY_COLOR, false)
+    if (!ThemeUtil.isTranslucentTheme() && !ThemeUtil.isNightMode() && !isToolbarPrimaryColor) {
+        darkerStatusBar = false
+    } else if (!context.dataStore.getBoolean("status_bar_darker", true)) {
+        darkerStatusBar = false
+    }
+    return if (darkerStatusBar) ColorUtils.getDarkerColor(originColor) else originColor
+}
+
+val Context.powerManager: PowerManager
+    get() = getSystemService(Context.POWER_SERVICE) as PowerManager
+
+@SuppressLint("BatteryLife")
+fun Context.requestIgnoreBatteryOptimizations() {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        if (!powerManager.isIgnoringBatteryOptimizations(packageName)) {
+            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+            intent.data = Uri.parse("package:${packageName}")
+            startActivity(intent)
+        }
+    }
+}
+
+fun Context.isIgnoringBatteryOptimizations(): Boolean =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        powerManager.isIgnoringBatteryOptimizations(packageName)
+    } else {
+        true
+    }
+
+suspend fun requestPinShortcut(
+    context: Context,
+    shortcutId: String,
+    iconImageUri: String,
+    label: String,
+    shortcutIntent: Intent,
+    onSuccess: () -> Unit = {},
+    onFailure: (String) -> Unit = {}
+) {
+    if (ShortcutManagerCompat.isRequestPinShortcutSupported(context)) {
+        val imageResult = LoadRequest(context, iconImageUri).execute()
+        if (imageResult is LoadResult.Success) {
+            val shortcutInfo = ShortcutInfoCompat.Builder(context, shortcutId)
+                .setIcon(IconCompat.createWithBitmap(imageResult.bitmap))
+                .setIntent(shortcutIntent)
+                .setShortLabel(label)
+                .build()
+            val result = ShortcutManagerCompat.requestPinShortcut(context, shortcutInfo, null)
+            if (result) onSuccess() else onFailure(context.getString(R.string.launcher_not_support_pin_shortcut))
+        } else {
+            onFailure(context.getString(R.string.load_shortcut_icon_fail))
+        }
+    } else {
+        onFailure(context.getString(R.string.launcher_not_support_pin_shortcut))
+    }
 }

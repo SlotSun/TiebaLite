@@ -23,7 +23,8 @@ import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
 
-class SearchForumFragment : BaseFragment(), ISearchFragment, OnItemClickListener<SearchForumBean.ForumInfoBean> {
+class SearchForumFragment : BaseFragment(), ISearchFragment,
+    OnItemClickListener<SearchForumBean.ForumInfoBean> {
     @JvmField
     @BindView(R.id.fragment_search_refresh)
     var refreshLayout: SmartRefreshLayout? = null
@@ -48,8 +49,8 @@ class SearchForumFragment : BaseFragment(), ISearchFragment, OnItemClickListener
     private var mData: SearchForumBean.DataBean? = null
 
     override fun setKeyword(
-            keyword: String?,
-            needRefresh: Boolean
+        keyword: String?,
+        needRefresh: Boolean
     ) {
         this.keyword = keyword
         if (needRefresh) {
@@ -73,7 +74,7 @@ class SearchForumFragment : BaseFragment(), ISearchFragment, OnItemClickListener
         }
     }
 
-    public override fun getLayoutId(): Int {
+    override fun getLayoutId(): Int {
         return R.layout.fragment_search
     }
 
@@ -82,15 +83,19 @@ class SearchForumFragment : BaseFragment(), ISearchFragment, OnItemClickListener
         recyclerView.layoutManager = layoutManager
         recyclerView.adapter = delegateAdapter
         refreshLayout!!.setOnRefreshListener { refresh() }
-        ThemeUtil.setThemeForSmartRefreshLayout(refreshLayout)
+        ThemeUtil.setThemeForSmartRefreshLayout(refreshLayout!!)
     }
 
     private fun refresh() {
-        if (keyword == null) {
+        if (keyword.isNullOrBlank()) {
+            refreshLayout?.finishRefresh()
             return
         }
         getInstance().searchForum(keyword!!).enqueue(object : Callback<SearchForumBean> {
-            override fun onResponse(call: Call<SearchForumBean>, response: Response<SearchForumBean>) {
+            override fun onResponse(
+                call: Call<SearchForumBean>,
+                response: Response<SearchForumBean>
+            ) {
                 mData = response.body()!!.data
                 refreshLayout?.finishRefreshWithNoMoreData()
                 reloadAdapters()
@@ -110,9 +115,9 @@ class SearchForumFragment : BaseFragment(), ISearchFragment, OnItemClickListener
             if (mData!!.exactMatch != null) {
                 exactMatchAdapter.setData(listOf(mData!!.exactMatch!!))
                 delegateAdapter.addAdapter(HeaderDelegateAdapter(
-                        attachContext,
-                        R.string.title_exact_match,
-                        R.drawable.ic_round_graphic_eq
+                    attachContext,
+                    R.string.title_exact_match,
+                    R.drawable.ic_round_graphic_eq
                 ).apply {
                     setHeaderBackgroundResource(R.drawable.bg_top_radius_8dp)
                     topMargin = attachContext.resources.getDimensionPixelSize(R.dimen.card_margin)
@@ -121,12 +126,12 @@ class SearchForumFragment : BaseFragment(), ISearchFragment, OnItemClickListener
                 })
                 delegateAdapter.addAdapter(exactMatchAdapter)
             }
-            if (!mData!!.fuzzyMatch.isNullOrEmpty()) {
-                fuzzyMatchAdapter.setData(mData!!.fuzzyMatch!!)
+            if (mData!!.fuzzyMatch.isNotEmpty()) {
+                fuzzyMatchAdapter.setData(mData!!.fuzzyMatch)
                 delegateAdapter.addAdapter(HeaderDelegateAdapter(
-                        attachContext,
-                        R.string.title_fuzzy_match,
-                        R.drawable.ic_infinite
+                    attachContext,
+                    R.string.title_fuzzy_match,
+                    R.drawable.ic_infinite
                 ).apply {
                     setHeaderBackgroundResource(R.drawable.bg_top_radius_8dp)
                     topMargin = attachContext.resources.getDimensionPixelSize(R.dimen.card_margin)
@@ -158,7 +163,11 @@ class SearchForumFragment : BaseFragment(), ISearchFragment, OnItemClickListener
         }
     }
 
-    override fun onClick(viewHolder: MyViewHolder, item: SearchForumBean.ForumInfoBean, position: Int) {
+    override fun onClick(
+        viewHolder: MyViewHolder,
+        item: SearchForumBean.ForumInfoBean,
+        position: Int
+    ) {
         item.forumName?.let { ForumActivity.launch(attachContext, it) }
     }
 }

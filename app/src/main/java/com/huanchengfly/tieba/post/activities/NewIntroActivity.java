@@ -8,9 +8,9 @@ import com.huanchengfly.tieba.post.fragments.intro.CustomSettingsFragment;
 import com.huanchengfly.tieba.post.fragments.intro.ExploreFragment;
 import com.huanchengfly.tieba.post.fragments.intro.HabitSettingsFragment;
 import com.huanchengfly.tieba.post.fragments.intro.PermissionFragment;
-import com.huanchengfly.tieba.post.ui.intro.BaseIntroActivity;
-import com.huanchengfly.tieba.post.ui.intro.fragments.AppIntroFragment;
-import com.huanchengfly.tieba.post.ui.theme.utils.ThemeUtils;
+import com.huanchengfly.tieba.post.ui.common.intro.BaseIntroActivity;
+import com.huanchengfly.tieba.post.ui.common.intro.fragments.AppIntroFragment;
+import com.huanchengfly.tieba.post.ui.common.theme.utils.ThemeUtils;
 import com.huanchengfly.tieba.post.utils.AccountUtil;
 import com.huanchengfly.tieba.post.utils.SharedPreferencesUtil;
 
@@ -36,7 +36,7 @@ public class NewIntroActivity extends BaseIntroActivity {
         getAdapter().addFragment(new CustomSettingsFragment());
         getAdapter().addFragment(new ExploreFragment());
         getAdapter().addFragment(new AppIntroFragment.Builder(this)
-                .setIconRes(R.drawable.ic_round_emoji_emotions)
+                .setIconRes(R.drawable.ic_round_emoji_emoticons)
                 .setTitle(getString(R.string.title_intro_completed))
                 .setSubtitle(getString(R.string.subtitle_intro_completed))
                 .setIconColor(ThemeUtils.getColorByAttr(this, R.attr.colorAccent))
@@ -51,7 +51,7 @@ public class NewIntroActivity extends BaseIntroActivity {
                 .edit()
                 .putBoolean("first", false)
                 .apply();
-        if (!AccountUtil.isLoggedIn(this)) {
+        if (!AccountUtil.isLoggedIn()) {
             startActivity(new Intent(this, LoginActivity.class));
         }
     }

@@ -3,8 +3,8 @@ package com.huanchengfly.tieba.post.fragments.intro
 import android.os.Build
 import android.view.ViewGroup
 import com.huanchengfly.tieba.post.R
-import com.huanchengfly.tieba.post.ui.intro.fragments.BaseIntroFragment
-import com.huanchengfly.tieba.post.ui.theme.utils.ThemeUtils
+import com.huanchengfly.tieba.post.ui.common.intro.fragments.BaseIntroFragment
+import com.huanchengfly.tieba.post.ui.common.theme.utils.ThemeUtils
 import com.huanchengfly.tieba.post.utils.PermissionUtils
 
 class PermissionFragment : BaseIntroFragment() {
@@ -32,7 +32,7 @@ class PermissionFragment : BaseIntroFragment() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             PermissionUtils.askPermission(
                 attachContext,
-                PermissionUtils.Permission(
+                PermissionUtils.PermissionData(
                     listOf(PermissionUtils.READ_PHONE_STATE),
                     getString(R.string.tip_permission_phone)
                 )

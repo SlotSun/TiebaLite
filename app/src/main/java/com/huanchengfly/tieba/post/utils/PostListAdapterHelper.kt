@@ -11,7 +11,7 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import com.huanchengfly.tieba.post.BaseApplication
+import com.huanchengfly.tieba.post.App
 import com.huanchengfly.tieba.post.R
 import com.huanchengfly.tieba.post.activities.PhotoViewActivity.Companion.OBJ_TYPE_THREAD_PAGE
 import com.huanchengfly.tieba.post.activities.WebViewActivity
@@ -24,14 +24,14 @@ import com.huanchengfly.tieba.post.components.spans.MyUserSpan
 import com.huanchengfly.tieba.post.dpToPx
 import com.huanchengfly.tieba.post.isTablet
 import com.huanchengfly.tieba.post.models.PhotoViewBean
-import com.huanchengfly.tieba.post.ui.theme.utils.ThemeUtils
+import com.huanchengfly.tieba.post.ui.common.theme.utils.ThemeUtils
+import com.huanchengfly.tieba.post.ui.widgets.MyImageView
+import com.huanchengfly.tieba.post.ui.widgets.VideoPlayerStandard
+import com.huanchengfly.tieba.post.ui.widgets.VoicePlayerView
+import com.huanchengfly.tieba.post.ui.widgets.theme.TintMySpannableTextView
 import com.huanchengfly.tieba.post.utils.BilibiliUtil.replaceVideoNumberSpan
-import com.huanchengfly.tieba.post.widgets.MyImageView
-import com.huanchengfly.tieba.post.widgets.VideoPlayerStandard
-import com.huanchengfly.tieba.post.widgets.VoicePlayerView
-import com.huanchengfly.tieba.post.widgets.theme.TintMySpannableTextView
-import java.util.*
-import kotlin.collections.ArrayList
+import com.huanchengfly.tieba.post.utils.EmoticonManager.registerEmoticon
+import java.util.TreeMap
 import kotlin.math.roundToInt
 
 class PostListAdapterHelper(
@@ -114,9 +114,9 @@ class PostListAdapterHelper(
         mySpannableTextView.setTintResId(R.color.default_color_text)
         mySpannableTextView.setLinkTouchMovementMethod(LinkTouchMovementMethod.getInstance())
         textView = mySpannableTextView
-        textView.setFocusable(false)
-        textView.setClickable(false)
-        textView.setLongClickable(false)
+        textView.isFocusable = false
+        textView.isClickable = false
+        textView.isLongClickable = false
         textView.setTextIsSelectable(false)
         textView.setOnClickListener(null)
         textView.setOnLongClickListener(null)
@@ -133,19 +133,19 @@ class PostListAdapterHelper(
     private fun setText(textView: TextView, content: CharSequence?) {
         var text = content
         text = replaceVideoNumberSpan(context, text)
-        text = StringUtil.getEmotionContent(EmotionUtil.EMOTION_ALL_TYPE, textView, text)
+        text = StringUtil.getEmoticonContent(textView, text, EmoticonUtil.EMOTICON_ALL_TYPE)
         textView.text = text
     }
 
     private fun getMaxWidth(floor: String): Float {
         var maxWidth: Float =
-            BaseApplication.ScreenInfo.EXACT_SCREEN_WIDTH.toFloat() - (24 * 2 + 38).dpToPx()
+            App.ScreenInfo.EXACT_SCREEN_WIDTH.toFloat() - (24 * 2 + 38).dpToPx()
         if (pureRead || "1" == floor) {
             maxWidth =
-                BaseApplication.ScreenInfo.EXACT_SCREEN_WIDTH.toFloat() - (16 * 2 + 4).dpToPx()
+                App.ScreenInfo.EXACT_SCREEN_WIDTH.toFloat() - (16 * 2 + 4).dpToPx()
         }
         if (context.isTablet) {
-            return maxWidth / 2;
+            return maxWidth / 2
         }
         return maxWidth
     }
@@ -300,9 +300,9 @@ class PostListAdapterHelper(
 
     fun getContentViews(postListItemBean: PostListItemBean): List<View> {
         val views: MutableList<View> = ArrayList()
-        for (contentBean in postListItemBean.content!!) {
+        for (contentBean in postListItemBean.content ?: emptyList()) {
             when (contentBean.type) {
-                "0", "9" -> {
+                "0", "9", "27" -> {
                     if (appendTextToLastTextView(views, contentBean.text)) {
                         val textView: TextView = createTextView()
                         textView.layoutParams =
@@ -311,6 +311,7 @@ class PostListAdapterHelper(
                         views.add(textView)
                     }
                 }
+
                 "1" -> if (appendLinkToLastTextView(views, contentBean.text, contentBean.link!!)) {
                     val textView: TextView = createTextView()
                     textView.layoutParams = getLayoutParams(contentBean, postListItemBean.floor!!)
@@ -319,6 +320,10 @@ class PostListAdapterHelper(
                 }
                 "2" -> {
                     val emojiText = "#(" + contentBean.c + ")"
+                    registerEmoticon(
+                        contentBean.text!!,
+                        contentBean.c!!
+                    )
                     if (appendTextToLastTextView(views, emojiText)) {
                         val textView: TextView = createTextView()
                         textView.layoutParams =
@@ -415,7 +420,7 @@ class PostListAdapterHelper(
                 }
                 "10" -> {
                     val voiceUrl =
-                        "http://c.tieba.baidu.com/c/p/voice?voice_md5=" + contentBean.voiceMD5 + "&play_from=pb_voice_play"
+                        "https://tiebac.baidu.com/c/p/voice?voice_md5=" + contentBean.voiceMD5 + "&play_from=pb_voice_play"
                     val voicePlayerView = VoicePlayerView(context)
                     voicePlayerView.layoutParams = LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.WRAP_CONTENT,

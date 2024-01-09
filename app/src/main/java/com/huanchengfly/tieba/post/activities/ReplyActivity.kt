@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.Intent.ACTION_VIEW
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.text.Editable
@@ -18,7 +19,6 @@ import android.view.ViewGroup
 import android.webkit.WebView
 import android.widget.FrameLayout
 import android.widget.GridView
-import android.widget.RelativeLayout
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.appcompat.widget.Toolbar
@@ -27,10 +27,9 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager.widget.ViewPager
 import butterknife.BindView
-import cn.dreamtobe.kpswitch.util.KPSwitchConflictUtil
-import cn.dreamtobe.kpswitch.util.KPSwitchConflictUtil.SubPanelAndTrigger
-import cn.dreamtobe.kpswitch.util.KeyboardUtil
-import cn.dreamtobe.kpswitch.widget.KPSwitchFSPanelFrameLayout
+import com.effective.android.panel.PanelSwitchHelper
+import com.effective.android.panel.utils.hideSoftInput
+import com.effective.android.panel.view.panel.PanelView
 import com.google.android.material.tabs.TabLayout
 import com.huanchengfly.tieba.post.R
 import com.huanchengfly.tieba.post.adapters.InsertPhotoAdapter
@@ -39,7 +38,7 @@ import com.huanchengfly.tieba.post.adapters.TextWatcherAdapter
 import com.huanchengfly.tieba.post.api.TiebaApi
 import com.huanchengfly.tieba.post.api.retrofit.doIfFailure
 import com.huanchengfly.tieba.post.api.retrofit.doIfSuccess
-import com.huanchengfly.tieba.post.components.EmotionViewFactory
+import com.huanchengfly.tieba.post.components.EmoticonViewFactory
 import com.huanchengfly.tieba.post.components.dialogs.LoadingDialog
 import com.huanchengfly.tieba.post.interfaces.ReplyContentCallback
 import com.huanchengfly.tieba.post.interfaces.UploadCallback
@@ -47,34 +46,37 @@ import com.huanchengfly.tieba.post.models.PhotoInfoBean
 import com.huanchengfly.tieba.post.models.ReplyInfoBean
 import com.huanchengfly.tieba.post.models.database.Draft
 import com.huanchengfly.tieba.post.toastShort
+import com.huanchengfly.tieba.post.ui.widgets.edittext.widget.UndoableEditText
+import com.huanchengfly.tieba.post.ui.widgets.theme.TintImageView
+import com.huanchengfly.tieba.post.ui.widgets.theme.TintLinearLayout
 import com.huanchengfly.tieba.post.utils.*
-import com.huanchengfly.tieba.post.widgets.edittext.widget.UndoableEditText
-import com.huanchengfly.tieba.post.widgets.theme.TintConstraintLayout
-import com.huanchengfly.tieba.post.widgets.theme.TintImageView
 import org.litepal.LitePal.where
 
+
 class ReplyActivity : BaseActivity(), View.OnClickListener,
-    InsertPhotoAdapter.MatisseLauncherProvider {
-    @BindView(R.id.activity_reply_edit_text)
+    InsertPhotoAdapter.PickMediasLauncherProvider {
+    private var mHelper: PanelSwitchHelper? = null
+
+    @BindView(R.id.edit_text)
     lateinit var editText: UndoableEditText
 
-    @BindView(R.id.activity_reply_panel_root)
-    lateinit var panelFrameLayout: KPSwitchFSPanelFrameLayout
+    @BindView(R.id.activity_reply_layout)
+    lateinit var rootLayout: TintLinearLayout
 
-    @BindView(R.id.activity_reply_emotion)
-    lateinit var emotionView: RelativeLayout
+    @BindView(R.id.activity_reply_emoticon)
+    lateinit var emoticonView: PanelView
 
     @BindView(R.id.activity_reply_insert_photo)
-    lateinit var insertImageView: FrameLayout
+    lateinit var insertImageView: PanelView
 
-    @BindView(R.id.activity_reply_edit_emotion)
-    lateinit var emotionBtn: TintImageView
+    @BindView(R.id.activity_reply_edit_emoticon)
+    lateinit var emoticonBtn: TintImageView
 
     @BindView(R.id.activity_reply_edit_insert_photo)
     lateinit var insertImageBtn: TintImageView
 
-    @BindView(R.id.activity_reply_emotion_view_pager)
-    lateinit var emotionViewPager: ViewPager
+    @BindView(R.id.activity_reply_emoticon_view_pager)
+    lateinit var emoticonViewPager: ViewPager
 
     @BindView(R.id.activity_reply_insert_photo_view)
     lateinit var insertView: RecyclerView
@@ -97,15 +99,61 @@ class ReplyActivity : BaseActivity(), View.OnClickListener,
         get() = false
 
     @JvmField
-    val matisseLauncher = registerForActivityResult(InsertPhotoAdapter.MatisseResultContract()) {
+    val pickMediasLauncher = registerPickMediasLauncher { (_, uris) ->
         val photoInfoBeans = insertPhotoAdapter.getFileList().toMutableList()
-        for (uri in it) {
+        for (uri in uris) {
             photoInfoBeans.add(PhotoInfoBean(this, uri))
         }
         insertPhotoAdapter.setFileList(photoInfoBeans)
     }
 
-    override fun getMatisseLauncher(): ActivityResultLauncher<Intent> = matisseLauncher
+    override fun onStart() {
+        super.onStart()
+        if (mHelper == null) {
+            mHelper = PanelSwitchHelper.Builder(this)
+                .build(true)
+
+            if (appPreferences.postOrReplyWarning) {
+                showDialog {
+                    setTitle(R.string.title_dialog_reply_warning)
+                    setMessage(R.string.message_dialog_reply_warning)
+                    setNegativeButton(R.string.btn_cancel_reply) { _, _ ->
+                        finish()
+                    }
+                    setNeutralButton(R.string.btn_continue_reply, null)
+                    setPositiveButton(R.string.button_official_client_reply) { _, _ ->
+                        val intent = Intent(ACTION_VIEW).setData(getDispatchUri())
+                        val resolveInfos =
+                            packageManager.queryIntentActivities(
+                                intent,
+                                PackageManager.MATCH_DEFAULT_ONLY
+                            )
+                                .filter { it.resolvePackageName != packageName }
+                        try {
+                            if (resolveInfos.isNotEmpty()) {
+                                startActivity(intent)
+                            } else {
+                                toastShort(R.string.toast_official_client_not_install)
+                            }
+                        } catch (e: ActivityNotFoundException) {
+                            toastShort(R.string.toast_official_client_not_install)
+                        }
+                        finish()
+                    }
+                }
+            }
+        }
+    }
+
+    override fun onBackPressed() {
+        if (mHelper?.hookSystemBackByPanelSwitcher() == true) {
+            return
+        }
+        super.onBackPressed()
+    }
+
+    override fun getPickMediasLauncher(): ActivityResultLauncher<PickMediasRequest> =
+        pickMediasLauncher
 
     override fun getLayoutId(): Int {
         return R.layout.activity_reply
@@ -113,42 +161,19 @@ class ReplyActivity : BaseActivity(), View.OnClickListener,
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setSwipeBackEnable(false)
-        if (ThemeUtil.THEME_TRANSLUCENT == ThemeUtil.getTheme(this)) {
-            val constraintLayout = findViewById(R.id.activity_reply_layout) as TintConstraintLayout
-            constraintLayout.setBackgroundTintResId(0)
-            ThemeUtil.setTranslucentBackground(constraintLayout)
+        if (ThemeUtil.isTranslucentTheme()) {
+            rootLayout.setBackgroundTintResId(0)
+            ThemeUtil.setTranslucentBackground(rootLayout)
         }
         Util.setStatusBarTransparent(this)
+        val decor = window.decorView as ViewGroup
+        val decorChild = decor.getChildAt(0) as ViewGroup
+        decorChild.setBackgroundColor(Color.TRANSPARENT)
         window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-        window.decorView.setBackgroundColor(resources.getColor(R.color.transparent))
-        window.setBackgroundDrawableResource(R.drawable.bg_trans)
+        window.decorView.setBackgroundColor(Color.TRANSPARENT)
+        window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         initData()
         initView()
-        if (appPreferences.postOrReplyWarning) showDialog {
-            setTitle(R.string.title_dialog_reply_warning)
-            setMessage(R.string.message_dialog_reply_warning)
-            setNegativeButton(R.string.btn_cancel_reply) { _, _ ->
-                finish()
-            }
-            setNeutralButton(R.string.btn_continue_reply, null)
-            setPositiveButton(R.string.button_official_client_reply) { _, _ ->
-                val intent = Intent(ACTION_VIEW).setData(getDispatchUri())
-                val resolveInfos =
-                    packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
-                        .filter { it.resolvePackageName != packageName }
-                try {
-                    if (resolveInfos.isNotEmpty()) {
-                        startActivity(intent)
-                    } else {
-                        toastShort(R.string.toast_official_client_not_install)
-                    }
-                } catch (e: ActivityNotFoundException) {
-                    toastShort(R.string.toast_official_client_not_install)
-                }
-                finish()
-            }
-        }
     }
 
     private fun getDispatchUri(): Uri? {
@@ -180,7 +205,6 @@ class ReplyActivity : BaseActivity(), View.OnClickListener,
 
     override fun onPause() {
         super.onPause()
-        panelFrameLayout.recordKeyboardStatus(window)
         if (replyInfoBean != null && !replySuccess) {
             Draft(
                 replyInfoBean!!.hash(),
@@ -198,7 +222,7 @@ class ReplyActivity : BaseActivity(), View.OnClickListener,
         val intent = intent
         val jsonData = intent.getStringExtra("data")
         replyInfoBean = GsonUtil.getGson().fromJson(jsonData, ReplyInfoBean::class.java)
-        val draft = where("hash = ?", replyInfoBean?.hash())
+        val draft = where("hash = ?", replyInfoBean?.hash() ?: "")
             .findFirst(Draft::class.java)
         if (draft != null) {
             content = draft.content
@@ -278,8 +302,9 @@ class ReplyActivity : BaseActivity(), View.OnClickListener,
             }
         })
         mItemTouchHelper.attachToRecyclerView(insertView)
-        findViewById(R.id.activity_reply_root).setOnClickListener(this)
-        findViewById(R.id.activity_reply_layout).setOnClickListener(this)
+        findViewById<View>(R.id.content_view).setOnClickListener(this)
+        findViewById<View>(R.id.panel_container).setOnClickListener(this)
+        rootLayout.setOnClickListener(this)
         toolbar.setNavigationIcon(R.drawable.ic_reply_toolbar_round_close)
         if (replyInfoBean!!.pid == null && replyInfoBean!!.floorNum == null) {
             insertImageBtn.visibility = View.VISIBLE
@@ -293,37 +318,37 @@ class ReplyActivity : BaseActivity(), View.OnClickListener,
         if (replyInfoBean!!.replyUser != null) {
             editText.hint = getString(R.string.hint_reply, replyInfoBean!!.replyUser)
         }
-        val tabLayout = findViewById(R.id.activity_reply_emotion_tab) as TabLayout
-        val emotionViewPagerAdapter = TabViewPagerAdapter()
-        val classicEmotionGridView = GridView(this)
-        val emojiEmotionGridView = GridView(this)
-        EmotionViewFactory.initGridView(
+        val tabLayout = findViewById<TabLayout>(R.id.activity_reply_emoticon_tab)
+        val emoticonViewPagerAdapter = TabViewPagerAdapter()
+        val classicEmoticonGridView = GridView(this)
+        val emojiEmoticonGridView = GridView(this)
+        EmoticonViewFactory.initGridView(
             this,
-            EmotionUtil.EMOTION_CLASSIC_WEB_TYPE,
-            classicEmotionGridView
+            EmoticonUtil.EMOTICON_CLASSIC_WEB_TYPE,
+            classicEmoticonGridView
         )
-        EmotionViewFactory.initGridView(
+        EmoticonViewFactory.initGridView(
             this,
-            EmotionUtil.EMOTION_EMOJI_WEB_TYPE,
-            emojiEmotionGridView
+            EmoticonUtil.EMOTICON_EMOJI_WEB_TYPE,
+            emojiEmoticonGridView
         )
-        emotionViewPagerAdapter.addView(
-            classicEmotionGridView,
-            getString(R.string.title_emotion_classic)
+        emoticonViewPagerAdapter.addView(
+            classicEmoticonGridView,
+            getString(R.string.title_emoticon_classic)
         )
-        emotionViewPagerAdapter.addView(
-            emojiEmotionGridView,
-            getString(R.string.title_emotion_emoji)
+        emoticonViewPagerAdapter.addView(
+            emojiEmoticonGridView,
+            getString(R.string.title_emoticon_emoji)
         )
-        emotionViewPager.adapter = emotionViewPagerAdapter
-        tabLayout.setupWithViewPager(emotionViewPager)
+        emoticonViewPager.adapter = emoticonViewPagerAdapter
+        tabLayout.setupWithViewPager(emoticonViewPager)
         if (content != null) {
             editText.mgr.disable()
             editText.setText(
-                StringUtil.getEmotionContent(
-                    EmotionUtil.EMOTION_ALL_WEB_TYPE,
+                StringUtil.getEmoticonContent(
                     editText,
-                    content
+                    content,
+                    EmoticonUtil.EMOTICON_ALL_WEB_TYPE
                 )
             )
             editText.mgr.enable()
@@ -359,9 +384,12 @@ class ReplyActivity : BaseActivity(), View.OnClickListener,
                     .append(" :")
             }
             builder.append(editText.text)
+
             if (appPreferences.littleTail != null) {
-                builder.append("\n")
-                    .append(appPreferences.littleTail)
+                if (replyInfoBean!!.isSubFloor == false || replyInfoBean!!.replyUser == null) {
+                    builder.append("\n")
+                }
+                builder.append(appPreferences.littleTail)
             }
             return builder.toString()
         }
@@ -430,9 +458,9 @@ class ReplyActivity : BaseActivity(), View.OnClickListener,
     }
 
     private fun initListener() {
-        val undo = findViewById(R.id.activity_reply_edit_undo) as TintImageView
-        val redo = findViewById(R.id.activity_reply_edit_redo) as TintImageView
-        val clear = findViewById(R.id.activity_reply_edit_clear) as TintImageView
+        val undo = findViewById<TintImageView>(R.id.activity_reply_edit_undo)
+        val redo = findViewById<TintImageView>(R.id.activity_reply_edit_redo)
+        val clear = findViewById<TintImageView>(R.id.activity_reply_edit_clear)
         undo.setOnClickListener(this)
         setEnabled(undo, false)
         redo.setOnClickListener(this)
@@ -448,14 +476,7 @@ class ReplyActivity : BaseActivity(), View.OnClickListener,
                 if (sendItem != null) sendItem!!.isEnabled = canSend()
             }
         })
-        KeyboardUtil.attach(this, panelFrameLayout)
-        KPSwitchConflictUtil.attach(
-            panelFrameLayout,
-            editText,
-            SubPanelAndTrigger(emotionView, emotionBtn),
-            SubPanelAndTrigger(insertImageView, insertImageBtn)
-        )
-        EmotionUtil.GlobalOnItemClickManagerUtil.getInstance(this).attachToEditText(editText)
+        EmoticonUtil.GlobalOnItemClickManagerUtil.attachToEditText(editText)
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -463,11 +484,6 @@ class ReplyActivity : BaseActivity(), View.OnClickListener,
         sendItem = menu.findItem(R.id.menu_send)
         sendItem?.isEnabled = content?.isNotEmpty() ?: false
         return super.onCreateOptionsMenu(menu)
-    }
-
-    override fun finish() {
-        overridePendingTransition(R.anim.in_bottom, R.anim.out_bottom)
-        super.finish()
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
@@ -499,6 +515,10 @@ class ReplyActivity : BaseActivity(), View.OnClickListener,
 
 
     private fun realReply( /*String code, String md5*/) {
+        if (replyInfoBean == null && replyInfoBean!!.forumId == null) {
+            toastShort(R.string.toast_data_error)
+            return
+        }
         loadingDialog = LoadingDialog(this)
         loadingDialog!!.show()
         getImageInfo(object : ReplyContentCallback {
@@ -553,7 +573,7 @@ class ReplyActivity : BaseActivity(), View.OnClickListener,
                             if (loadingDialog != null) loadingDialog!!.cancel()
                             Toast.makeText(
                                 this@ReplyActivity,
-                                R.string.toast_reply_success,
+                                R.string.toast_reply_success_default,
                                 Toast.LENGTH_SHORT
                             ).show()
                             sendBroadcast(
@@ -568,8 +588,8 @@ class ReplyActivity : BaseActivity(), View.OnClickListener,
                             finish()
                         }.doIfFailure {
                             if (loadingDialog != null) loadingDialog!!.cancel()
-                            KeyboardUtil.hideKeyboard(panelFrameLayout)
-                            showErrorSnackBar(panelFrameLayout, it)
+                            hideSoftInput()
+                            showErrorSnackBar(rootLayout, it)
                         }
                     }
                 }
@@ -592,7 +612,7 @@ class ReplyActivity : BaseActivity(), View.OnClickListener,
 
     override fun onClick(v: View) {
         when (v.id) {
-            R.id.activity_reply_root -> finish()
+            R.id.content_view -> finish()
             R.id.activity_reply_edit_undo -> editText.undo()
             R.id.activity_reply_edit_redo -> editText.redo()
             R.id.activity_reply_edit_clear -> editText.setText(null)
@@ -600,7 +620,6 @@ class ReplyActivity : BaseActivity(), View.OnClickListener,
     }
 
     companion object {
-        const val REQUEST_CODE_CHOOSE = 2
         const val TAG = "ReplyActivity"
     }
 }

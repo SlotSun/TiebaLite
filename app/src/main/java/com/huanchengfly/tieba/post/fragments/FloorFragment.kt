@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.widget.Toolbar
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import butterknife.BindView
@@ -21,6 +22,7 @@ import com.huanchengfly.tieba.post.activities.ThreadActivity
 import com.huanchengfly.tieba.post.adapters.RecyclerFloorAdapter
 import com.huanchengfly.tieba.post.api.TiebaApi
 import com.huanchengfly.tieba.post.api.models.SubFloorListBean
+import com.huanchengfly.tieba.post.api.retrofit.exception.getErrorMessage
 import com.huanchengfly.tieba.post.components.MyLinearLayoutManager
 import com.huanchengfly.tieba.post.components.dividers.ThreadDivider
 import com.huanchengfly.tieba.post.components.transformations.RadiusTransformation
@@ -71,15 +73,21 @@ class FloorFragment : BaseBottomSheetDialogFragment() {
         }
         val floor = dataBean!!.post!!.floor.toInt()
         val pn = floor - floor % 30
-        startActivity(Intent(attachContext, ReplyActivity::class.java).putExtra("data",
-                ReplyInfoBean(dataBean!!.thread!!.id,
-                        dataBean!!.forum!!.id,
-                        dataBean!!.forum!!.name,
-                        dataBean!!.anti!!.tbs,
-                        dataBean!!.post!!.id,
-                        dataBean!!.post!!.floor,
-                        dataBean!!.post!!.author.nameShow,
-                        AccountUtil.getLoginInfo(attachContext)!!.nameShow).setPn(pn.toString()).toString()))
+        startActivity(
+            Intent(attachContext, ReplyActivity::class.java).putExtra(
+                "data",
+                ReplyInfoBean(
+                    dataBean!!.thread!!.id,
+                    dataBean!!.forum!!.id,
+                    dataBean!!.forum!!.name,
+                    dataBean!!.anti!!.tbs,
+                    dataBean!!.post!!.id,
+                    dataBean!!.post!!.floor,
+                    dataBean!!.post!!.author.nameShow,
+                    AccountUtil.getLoginInfo()!!.nameShow
+                ).setPn(pn.toString()).toString()
+            )
+        )
     }
 
     override fun isFullScreen(): Boolean {
@@ -90,7 +98,12 @@ class FloorFragment : BaseBottomSheetDialogFragment() {
         super.onStart()
         val filter = IntentFilter()
         filter.addAction(ThreadActivity.ACTION_REPLY_SUCCESS)
-        attachContext.registerReceiver(replyReceiver, filter)
+        ContextCompat.registerReceiver(
+            attachContext,
+            replyReceiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
     }
 
     override fun onStop() {
@@ -110,9 +123,10 @@ class FloorFragment : BaseBottomSheetDialogFragment() {
     }
 
     override fun initView() {
-        ThemeUtil.setTranslucentThemeBackground(rootView.findViewById(R.id.background),
-                false,
-                false,
+        ThemeUtil.setTranslucentThemeBackground(
+            rootView.findViewById(R.id.background),
+            false,
+            false,
             RadiusTransformation(
                 8,
                 RadiusTransformation.CORNER_TOP_LEFT or RadiusTransformation.CORNER_TOP_RIGHT
@@ -168,33 +182,39 @@ class FloorFragment : BaseBottomSheetDialogFragment() {
 
     private fun refresh(jump: Boolean = false) {
         TiebaApi.getInstance()
-                .floor(tid, pn, pid, spid)
-                .enqueue(object : Callback<SubFloorListBean> {
-                    override fun onFailure(call: Call<SubFloorListBean>, t: Throwable) {
-                        Toast.makeText(attachContext, t.message, Toast.LENGTH_SHORT).show()
-                        refreshLayout.finishRefresh(false)
-                    }
+            .floor(tid, pn, pid, spid)
+            .enqueue(object : Callback<SubFloorListBean> {
+                override fun onFailure(call: Call<SubFloorListBean>, t: Throwable) {
+                    Toast.makeText(attachContext, t.getErrorMessage(), Toast.LENGTH_SHORT).show()
+                    refreshLayout.finishRefresh(false)
+                }
 
-                    override fun onResponse(call: Call<SubFloorListBean>, response: Response<SubFloorListBean>) {
-                        val subFloorListBean = response.body() ?: return
-                        dataBean = subFloorListBean
-                        recyclerViewAdapter!!.setData(subFloorListBean)
-                        refreshLayout.finishRefresh()
-                        if (subFloorListBean.page!!.currentPage.toInt() >= subFloorListBean.page.totalPage.toInt()) {
-                            refreshLayout.setNoMoreData(true)
-                        }
-                        toolbar.title = attachContext.getString(R.string.title_floor_loaded, subFloorListBean.post!!.floor)
-                        if (jump) {
-                            mLayoutManager!!.scrollToPositionWithOffset(1, 0)
-                        }
-                        refreshLayout.setEnableRefresh(false)
+                override fun onResponse(
+                    call: Call<SubFloorListBean>,
+                    response: Response<SubFloorListBean>
+                ) {
+                    val subFloorListBean = response.body() ?: return
+                    dataBean = subFloorListBean
+                    recyclerViewAdapter!!.setData(subFloorListBean)
+                    refreshLayout.finishRefresh()
+                    if (subFloorListBean.page!!.currentPage.toInt() >= subFloorListBean.page.totalPage.toInt()) {
+                        refreshLayout.setNoMoreData(true)
                     }
-                })
+                    toolbar.title = attachContext.getString(
+                        R.string.title_floor_loaded,
+                        subFloorListBean.post!!.floor
+                    )
+                    if (jump) {
+                        mLayoutManager!!.scrollToPositionWithOffset(1, 0)
+                    }
+                    refreshLayout.setEnableRefresh(false)
+                }
+            })
     }
 
     private fun load() {
         TiebaApi.getInstance()
-            .floor(tid, pn, pid, spid)
+            .floor(tid, pn + 1, pid, spid)
             .enqueue(object : Callback<SubFloorListBean> {
                 override fun onFailure(call: Call<SubFloorListBean>, t: Throwable) {
                     refreshLayout.finishLoadMore(false)
@@ -208,12 +228,12 @@ class FloorFragment : BaseBottomSheetDialogFragment() {
                     dataBean = subFloorListBean
                     recyclerViewAdapter!!.addData(subFloorListBean)
                     refreshLayout.finishLoadMore()
-                        if (subFloorListBean.page!!.currentPage.toInt() >= subFloorListBean.page.totalPage.toInt()) {
-                            refreshLayout.setNoMoreData(true)
-                        }
-                    pn += 1
+                    if (subFloorListBean.page!!.currentPage.toInt() >= subFloorListBean.page.totalPage.toInt()) {
+                        refreshLayout.setNoMoreData(true)
                     }
-                })
+                    pn += 1
+                }
+            })
     }
 
     companion object {
@@ -221,9 +241,15 @@ class FloorFragment : BaseBottomSheetDialogFragment() {
         const val PARAM_PID = "pid"
         const val PARAM_SUB_POST_ID = "spid"
         const val PARAM_JUMP = "jump"
+
         @JvmStatic
         @JvmOverloads
-        fun newInstance(tid: String?, pid: String?, spid: String? = null, jump: Boolean = false): FloorFragment {
+        fun newInstance(
+            tid: String?,
+            pid: String?,
+            spid: String? = null,
+            jump: Boolean = false
+        ): FloorFragment {
             val fragment = FloorFragment()
             val bundle = Bundle()
             bundle.putString(PARAM_TID, tid)

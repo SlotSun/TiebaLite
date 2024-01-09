@@ -13,16 +13,16 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.huanchengfly.tieba.post.R;
 import com.huanchengfly.tieba.post.adapters.PersonalizedFeedAdapter;
-import com.huanchengfly.tieba.post.ui.theme.interfaces.Tintable;
-import com.huanchengfly.tieba.post.ui.theme.utils.ThemeUtils;
+import com.huanchengfly.tieba.post.ui.common.theme.interfaces.Tintable;
+import com.huanchengfly.tieba.post.ui.common.theme.utils.ThemeUtils;
 import com.huanchengfly.tieba.post.utils.DisplayUtil;
 
 public class FeedDivider extends RecyclerView.ItemDecoration implements Tintable {
     public static final String TAG = "ThreadDivider";
 
     private Drawable mDivider;
-    private int mOrientation;
-    private int mCommonDividerHeight;
+    private final int mOrientation;
+    private final int mCommonDividerHeight;
 
     public FeedDivider(Context context) {
         mOrientation = LinearLayoutManager.VERTICAL;

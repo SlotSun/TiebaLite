@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?><!--suppress AndroidElementNotAllowed -->
 <androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
-    <androidx.preference.PreferenceCategory android:title="@string/title_account">
+    <androidx.preference.PreferenceCategory android:title="@string/title_account_manage">
         <ListPreference
             android:icon="@drawable/ic_round_account_circle"
             android:key="switch_account"
@@ -154,7 +154,7 @@
         </Preference>
 
         <ListPreference
-            android:defaultValue="dark"
+            android:defaultValue="grey_dark"
             android:entries="@array/dark_theme_names"
             android:entryValues="@array/dark_theme_values"
             android:icon="@drawable/ic_round_brightness_2_green"
@@ -208,11 +208,18 @@
     <androidx.preference.PreferenceCategory android:title="@string/title_sign_preference">
         <SwitchPreference
             android:defaultValue="true"
-            android:icon="@drawable/ic_round_speed"
+            android:icon="@drawable/ic_round_browse_gallery_24"
             android:key="oksign_slow_mode"
             android:summaryOff="@string/summary_oksign_slow_mode"
             android:summaryOn="@string/summary_oksign_slow_mode_on"
             android:title="@string/title_oksign_slow_mode" />
+
+        <SwitchPreference
+            android:defaultValue="true"
+            android:icon="@drawable/ic_round_speed"
+            android:key="oksign_use_official_oksign"
+            android:summary="@string/summary_oksign_use_official_oksign"
+            android:title="@string/title_oksign_use_official_oksign" />
 
         <SwitchPreference
             android:defaultValue="false"
@@ -245,14 +252,19 @@
     </androidx.preference.PreferenceCategory>
 
     <androidx.preference.PreferenceCategory android:title="@string/title_settings_about">
-        <!--
         <SwitchPreference
             android:defaultValue="false"
             android:icon="@drawable/ic_round_bug_report_blue"
-            android:key="check_beta_update"
-            android:summary="@string/tip_check_beta_update"
-            android:title="@string/title_check_beta_update" />
-        -->
+            android:key="checkCIUpdate"
+            android:summary="@string/tip_check_ci_update"
+            android:title="@string/title_check_ci_update" />
+
+        <SwitchPreference
+            android:defaultValue="true"
+            android:icon="@drawable/ic_round_fiber_new"
+            android:key="enable_new_ui"
+            android:summary="@string/summary_enable_new_ui"
+            android:title="@string/title_enable_new_ui" />
 
         <SwitchPreference
             android:defaultValue="true"
@@ -273,7 +285,7 @@
         <Preference
             android:icon="@drawable/ic_round_offline_bolt_green"
             android:key="clear_cache"
-            android:title="@string/title_clear_cache" />
+            android:title="@string/title_clear_picture_cache" />
 
         <Preference
             android:icon="@drawable/ic_round_info"

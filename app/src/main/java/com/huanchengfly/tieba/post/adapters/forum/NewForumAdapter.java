@@ -19,7 +19,7 @@ import com.alibaba.android.vlayout.LayoutHelper;
 import com.alibaba.android.vlayout.layout.LinearLayoutHelper;
 import com.alibaba.android.vlayout.layout.StaggeredGridLayoutHelper;
 import com.bumptech.glide.Glide;
-import com.huanchengfly.tieba.post.BaseApplication;
+import com.huanchengfly.tieba.post.App;
 import com.huanchengfly.tieba.post.ExtensionsKt;
 import com.huanchengfly.tieba.post.R;
 import com.huanchengfly.tieba.post.activities.ThreadActivity;
@@ -27,18 +27,18 @@ import com.huanchengfly.tieba.post.adapters.base.BaseMultiTypeDelegateAdapter;
 import com.huanchengfly.tieba.post.api.models.ForumPageBean;
 import com.huanchengfly.tieba.post.components.MyViewHolder;
 import com.huanchengfly.tieba.post.models.PhotoViewBean;
+import com.huanchengfly.tieba.post.ui.widgets.MarkedImageView;
+import com.huanchengfly.tieba.post.ui.widgets.VideoPlayerStandard;
+import com.huanchengfly.tieba.post.utils.AppPreferencesUtilsKt;
 import com.huanchengfly.tieba.post.utils.BlockUtil;
 import com.huanchengfly.tieba.post.utils.DateTimeUtils;
 import com.huanchengfly.tieba.post.utils.DisplayUtil;
 import com.huanchengfly.tieba.post.utils.ImageUtil;
 import com.huanchengfly.tieba.post.utils.NavigationHelper;
-import com.huanchengfly.tieba.post.utils.SharedPreferencesUtil;
 import com.huanchengfly.tieba.post.utils.StringUtil;
 import com.huanchengfly.tieba.post.utils.Util;
 import com.huanchengfly.tieba.post.utils.preload.PreloadUtil;
 import com.huanchengfly.tieba.post.utils.preload.loaders.ThreadContentLoader;
-import com.huanchengfly.tieba.post.widgets.MarkedImageView;
-import com.huanchengfly.tieba.post.widgets.VideoPlayerStandard;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -55,8 +55,14 @@ public class NewForumAdapter extends BaseMultiTypeDelegateAdapter<ForumPageBean.
     public static final int TYPE_THREAD_MULTI_PIC = 13;
     public static final int TYPE_THREAD_VIDEO = 14;
     private ForumPageBean data;
-    private Map<String, ForumPageBean.UserBean> userBeanMap;
+    private final Map<String, ForumPageBean.UserBean> userBeanMap;
     private List<Long> ids;
+
+    public NewForumAdapter(Context context) {
+        super(context, new LinearLayoutHelper());
+        ids = new ArrayList<>();
+        userBeanMap = new HashMap<>();
+    }
 
     @NonNull
     @Override
@@ -66,12 +72,6 @@ public class NewForumAdapter extends BaseMultiTypeDelegateAdapter<ForumPageBean.
         } else {
             return new LinearLayoutHelper();
         }
-    }
-
-    public NewForumAdapter(Context context) {
-        super(context, new LinearLayoutHelper());
-        ids = new ArrayList<>();
-        userBeanMap = new HashMap<>();
     }
 
     @Override
@@ -86,7 +86,7 @@ public class NewForumAdapter extends BaseMultiTypeDelegateAdapter<ForumPageBean.
     }
 
     private int getMaxWidth() {
-        int maxWidth = BaseApplication.ScreenInfo.EXACT_SCREEN_WIDTH - DisplayUtil.dp2px(getContext(), 40);
+        int maxWidth = App.ScreenInfo.EXACT_SCREEN_WIDTH - DisplayUtil.dp2px(getContext(), 40);
         if (ExtensionsKt.isTablet(getContext())) {
             return maxWidth / 2;
         }
@@ -94,7 +94,7 @@ public class NewForumAdapter extends BaseMultiTypeDelegateAdapter<ForumPageBean.
     }
 
     private int getGridHeight() {
-        int maxWidth = BaseApplication.ScreenInfo.EXACT_SCREEN_WIDTH - DisplayUtil.dp2px(getContext(), 70);
+        int maxWidth = App.ScreenInfo.EXACT_SCREEN_WIDTH - DisplayUtil.dp2px(getContext(), 70);
         if (ExtensionsKt.isTablet(getContext())) {
             maxWidth = maxWidth / 2;
         }
@@ -160,9 +160,13 @@ public class NewForumAdapter extends BaseMultiTypeDelegateAdapter<ForumPageBean.
     private void setListenerForImageView(List<ForumPageBean.MediaInfoBean> mediaInfoBeans, ImageView imageView, int position, ForumPageBean.ThreadBean threadBean) {
         List<PhotoViewBean> photoViewBeans = new ArrayList<>();
         for (ForumPageBean.MediaInfoBean media : mediaInfoBeans) {
-            photoViewBeans.add(new PhotoViewBean(ImageUtil.getNonNullString(media.getBigPic(), media.getSrcPic(), media.getOriginPic()),
-                    ImageUtil.getNonNullString(media.getOriginPic(), media.getSrcPic(), media.getBigPic()),
-                    "1".equals(media.isLongPic())));
+            photoViewBeans.add(
+                    new PhotoViewBean(
+                            ImageUtil.getNonNullString(media.getBigPic(), media.getSrcPic(), media.getOriginPic()),
+                            ImageUtil.getNonNullString(media.getOriginPic(), media.getSrcPic(), media.getBigPic()),
+                            "1".equals(media.isLongPic())
+                    )
+            );
         }
         ImageUtil.initImageView(imageView,
                 photoViewBeans,
@@ -256,7 +260,12 @@ public class NewForumAdapter extends BaseMultiTypeDelegateAdapter<ForumPageBean.
             case TYPE_THREAD_MULTI_PIC:
                 GridLayout gridLayout = viewHolder.getView(R.id.forum_item_content_pics);
                 CardView cardView = viewHolder.getView(R.id.forum_item_content_pics_card);
-                cardView.setRadius(DisplayUtil.dp2px(getContext(), SharedPreferencesUtil.get(getContext(), SharedPreferencesUtil.SP_SETTINGS).getInt("radius", 8)));
+                cardView.setRadius(
+                        DisplayUtil.dp2px(
+                                getContext(),
+                                AppPreferencesUtilsKt.getAppPreferences(getContext()).getRadius()
+                        )
+                );
                 MarkedImageView firstImageView = viewHolder.getView(R.id.forum_item_content_pic_1);
                 MarkedImageView secondImageView = viewHolder.getView(R.id.forum_item_content_pic_2);
                 MarkedImageView thirdImageView = viewHolder.getView(R.id.forum_item_content_pic_3);

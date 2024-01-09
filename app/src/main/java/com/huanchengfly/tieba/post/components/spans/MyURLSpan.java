@@ -8,12 +8,12 @@ import android.view.View;
 import androidx.annotation.NonNull;
 
 import com.huanchengfly.tieba.post.R;
-import com.huanchengfly.tieba.post.ui.theme.utils.ThemeUtils;
+import com.huanchengfly.tieba.post.ui.common.theme.utils.ThemeUtils;
 import com.huanchengfly.tieba.post.utils.UtilsKt;
 
 public class MyURLSpan extends ClickableSpan {
     public String url;
-    private Context context;
+    private final Context context;
 
     public MyURLSpan(Context context, String url) {
         super();

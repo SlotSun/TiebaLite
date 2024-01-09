@@ -8,13 +8,13 @@ import android.view.View;
 import androidx.annotation.NonNull;
 
 import com.huanchengfly.tieba.post.R;
-import com.huanchengfly.tieba.post.ui.theme.utils.ThemeUtils;
+import com.huanchengfly.tieba.post.ui.common.theme.utils.ThemeUtils;
 import com.huanchengfly.tieba.post.utils.NavigationHelper;
 
 public class MyUserSpan extends ClickableSpan {
     public String uid;
-    private Context context;
-    private NavigationHelper navigationHelper;
+    private final Context context;
+    private final NavigationHelper navigationHelper;
 
     public MyUserSpan(Context context, String uid) {
         super();

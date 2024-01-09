@@ -1,16 +1,20 @@
 # <p align="center">Tieba Lite</p>
 <p align="center">
-    <a href="https://circleci.com/gh/HuanCheng65/TiebaLite">
-        <img alt="CircleCI" src="https://build.appcenter.ms/v0.1/apps/11fb9a7c-fef2-4fd3-b150-167d30fc089d/branches/4.0-dev/badge">
+    <a href="https://github.com/HuanCheng65/TiebaLite/actions/workflows/build.yml">
+        <img alt="Build Status" src="https://github.com/HuanCheng65/TiebaLite/actions/workflows/build.yml/badge.svg?branch=4.0-dev">
     </a>
-    <a href="#">
-        <img alt="Status" src="https://img.shields.io/badge/%E7%8A%B6%E6%80%81-%EF%BC%9F%EF%BC%9F%EF%BC%9F-gray?style=flat-square&labelColor=gray&color=gray">
+    <a href="https://t.me/tblite_discuss">
+        <img alt="Status" src="https://img.shields.io/badge/-Telegram-blue?logo=telegram&style=flat">
     </a>
 </p>
 
 贴吧 Lite 是一个**非官方**的贴吧客户端。
 
 ## 说明
+
 **本软件及源码仅供学习交流使用，严禁用于商业用途。**
 
-~~本软件已停止功能性更新。~~
+## 友情链接
+
++ [Starry-OvO/aiotieba: Asynchronous I/O Client for Baidu Tieba](https://github.com/Starry-OvO/aiotieba)
++ [n0099/tbclient.protobuf: 百度贴吧客户端 Protocol Buffers 定义文件合集](https://github.com/n0099/tbclient.protobuf)

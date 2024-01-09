@@ -4,41 +4,40 @@ import android.annotation.SuppressLint
 import android.app.job.JobInfo
 import android.app.job.JobScheduler
 import android.content.*
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.viewpager.widget.ViewPager.OnPageChangeListener
 import butterknife.BindView
 import com.google.android.material.navigation.NavigationBarItemView
 import com.google.android.material.navigation.NavigationBarMenuView
 import com.google.android.material.navigation.NavigationBarView
 import com.google.android.material.snackbar.Snackbar
-import com.huanchengfly.tieba.post.BaseApplication
-import com.huanchengfly.tieba.post.R
+import com.huanchengfly.tieba.post.*
 import com.huanchengfly.tieba.post.adapters.ViewPagerAdapter
-import com.huanchengfly.tieba.post.api.Error
-import com.huanchengfly.tieba.post.api.interfaces.CommonCallback
-import com.huanchengfly.tieba.post.dpToPxFloat
+import com.huanchengfly.tieba.post.api.retrofit.exception.getErrorMessage
 import com.huanchengfly.tieba.post.fragments.MainForumListFragment
 import com.huanchengfly.tieba.post.fragments.MessageFragment
 import com.huanchengfly.tieba.post.fragments.MyInfoFragment
 import com.huanchengfly.tieba.post.fragments.PersonalizedFeedFragment
-import com.huanchengfly.tieba.post.goToActivity
 import com.huanchengfly.tieba.post.interfaces.Refreshable
-import com.huanchengfly.tieba.post.models.MyInfoBean
 import com.huanchengfly.tieba.post.services.NotifyJobService
+import com.huanchengfly.tieba.post.ui.widgets.MyViewPager
 import com.huanchengfly.tieba.post.utils.*
-import com.huanchengfly.tieba.post.widgets.MyViewPager
 import com.microsoft.appcenter.crashes.Crashes
-import com.microsoft.appcenter.distribute.Distribute
-import java.text.SimpleDateFormat
-import java.util.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.launch
 
 open class MainActivity : BaseActivity(), NavigationBarView.OnItemSelectedListener,
     NavigationBarView.OnItemReselectedListener {
@@ -66,7 +65,7 @@ open class MainActivity : BaseActivity(), NavigationBarView.OnItemSelectedListen
     public override fun onResume() {
         super.onResume()
         ThemeUtil.setTranslucentThemeBackground(findViewById(R.id.background))
-        navigationView.elevation = if (ThemeUtil.isTranslucentTheme(this)) {
+        navigationView.elevation = if (ThemeUtil.isTranslucentTheme()) {
             0f
         } else {
             4f.dpToPxFloat()
@@ -151,37 +150,44 @@ open class MainActivity : BaseActivity(), NavigationBarView.OnItemSelectedListen
         })
     }
 
-    private fun shouldShowSwitchSnackbar(): Boolean {
-        return ThemeUtil.getSharedPreferences(this).getBoolean(SP_SHOULD_SHOW_SNACKBAR, false)
+    private fun shouldShowSwitchSnackBar(): Boolean {
+        return dataStore.getBoolean(SP_SHOULD_SHOW_SNACKBAR, false)
     }
 
     override fun getLayoutId(): Int = R.layout.activity_main
 
-    private fun formatDateTime(
-        pattern: String,
-        timestamp: Long = System.currentTimeMillis()
-    ): String {
-        return SimpleDateFormat(pattern, Locale.getDefault()).format(Date(timestamp))
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setSwipeBackEnable(false)
         ThemeUtil.setTranslucentThemeBackground(findViewById(R.id.background))
         findView()
         initView()
         initListener()
-        Distribute.checkForUpdate()
-        Crashes.hasCrashedInLastSession().thenAccept { hasCrashed ->
-            if (hasCrashed) {
-                Crashes.getLastSessionCrashReport().thenAccept {
-                    val device = it.device
-                    showDialog {
-                        setTitle(R.string.title_dialog_crash)
-                        setMessage(R.string.message_dialog_crash)
-                        setPositiveButton(R.string.button_copy_crash) { _, _ ->
-                            TiebaUtil.copyText(
-                                this@MainActivity, """
+        lifecycleScope.launch(Dispatchers.Main) {
+            if (AccountUtil.isLoggedIn()) {
+                AccountUtil.fetchAccountFlow()
+                    .flowOn(Dispatchers.IO)
+                    .catch { e ->
+                        toastShort(e.getErrorMessage())
+                        e.printStackTrace()
+                    }
+                    .collect()
+            }
+        }
+        launch {
+            ClientUtils.setActiveTimestamp()
+        }
+        mViewPager.post {
+            Crashes.hasCrashedInLastSession()
+                .thenAccept { hasCrashed ->
+                    if (hasCrashed) {
+                        Crashes.getLastSessionCrashReport().thenAccept {
+                            val device = it.device
+                            showDialog {
+                                setTitle(R.string.title_dialog_copy_crash_report)
+                                setMessage(R.string.message_dialog_crash)
+                                setPositiveButton(R.string.button_copy_crash) { _, _ ->
+                                    TiebaUtil.copyText(
+                                        this@MainActivity, """
                                         App 版本：${device.appVersion}
                                         系统版本：${device.osVersion}
                                         机型：${device.oemName} ${device.model}
@@ -189,91 +195,116 @@ open class MainActivity : BaseActivity(), NavigationBarView.OnItemSelectedListen
                                         崩溃：
                                         ${it.stackTrace}
                                     """.trimIndent()
-                            )
+                                    )
+                                }
+                                setNegativeButton(R.string.button_cancel, null)
+                            }
                         }
-                        setNegativeButton(R.string.button_cancel, null)
+                    }
+                }
+            if (!SharedPreferencesUtil.get(SharedPreferencesUtil.SP_APP_DATA)
+                    .getBoolean("notice_dialog", false)
+            ) {
+                showDialog {
+                    setTitle(R.string.title_dialog_notice)
+                    setMessage(R.string.message_dialog_notice)
+                    setPositiveButton(R.string.button_sure_default) { _, _ ->
+                        SharedPreferencesUtil.put(
+                            this@MainActivity,
+                            SharedPreferencesUtil.SP_APP_DATA,
+                            "notice_dialog",
+                            true
+                        )
+                    }
+                    setCancelable(false)
+                }
+            }
+            if (appPreferences.autoSign && !isIgnoringBatteryOptimizations() && !appPreferences.ignoreBatteryOptimizationsDialog) {
+                showDialog {
+                    title = getString(R.string.title_dialog_oksign_battery_optimization)
+                    setMessage(R.string.message_dialog_oksign_battery_optimization)
+                    setPositiveButton(R.string.button_go_to_ignore_battery_optimization) { _, _ ->
+                        requestIgnoreBatteryOptimizations()
+                    }
+                    setNeutralButton(R.string.button_cancel, null)
+                    setNegativeButton(R.string.button_dont_remind_again) { _, _ ->
+                        appPreferences.ignoreBatteryOptimizationsDialog = true
                     }
                 }
             }
-        }
-        if (!SharedPreferencesUtil.get(SharedPreferencesUtil.SP_APP_DATA)
-                .getBoolean("notice_dialog", false)
-        ) {
-            showDialog(
-                DialogUtil.build(this)
-                    .setTitle(R.string.title_dialog_notice)
-                    .setMessage(R.string.message_dialog_notice)
-                    .setPositiveButton(R.string.button_sure_default) { _, _ ->
-                        SharedPreferencesUtil.put(
-                            this,
-                            SharedPreferencesUtil.SP_APP_DATA,
-                        "notice_dialog",
-                        true
-                    )
-                }
-                .setCancelable(false)
-                .create())
-        }
-        if (shouldShowSwitchSnackbar()) {
-            Util.createSnackbar(mViewPager, if (ThemeUtil.isNightMode(this)) R.string.snackbar_auto_switch_to_night else R.string.snackbar_auto_switch_from_night, Snackbar.LENGTH_SHORT)
+            if (shouldShowSwitchSnackBar()) {
+                Util.createSnackbar(
+                    mViewPager,
+                    if (ThemeUtil.isNightMode()) R.string.snackbar_auto_switch_to_night else R.string.snackbar_auto_switch_from_night,
+                    Snackbar.LENGTH_SHORT
+                )
                     .show()
-            SharedPreferencesUtil.put(ThemeUtil.getSharedPreferences(this), SP_SHOULD_SHOW_SNACKBAR, false)
+                dataStore.putBoolean(SP_SHOULD_SHOW_SNACKBAR, false)
+            }
         }
         handler.postDelayed({
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && AccountUtil.isLoggedIn()) {
+                requestPermission {
+                    permissions = listOf(PermissionUtils.POST_NOTIFICATIONS)
+                    description = getString(R.string.desc_permission_post_notifications)
+                }
+            }
             try {
                 TiebaUtil.initAutoSign(this)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
-            if (AccountUtil.isLoggedIn(this) && AccountUtil.getCookie(this) == null) {
-                showDialog(DialogUtil.build(this)
+            if (AccountUtil.isLoggedIn() && AccountUtil.getCookie() == null) {
+                showDialog(
+                    DialogUtil.build(this)
                         .setTitle(R.string.title_dialog_update_stoken)
                         .setMessage(R.string.message_dialog_update_stoken)
-                        .setPositiveButton(R.string.button_sure_default) { _: DialogInterface?, _: Int -> startActivity(UpdateInfoActivity.newIntent(this, UpdateInfoActivity.ACTION_UPDATE_LOGIN_INFO)) }
-                        .setCancelable(false)
-                        .create())
-            }
-            AccountUtil.updateUserInfo(this, object : CommonCallback<MyInfoBean> {
-                override fun onSuccess(data: MyInfoBean) {}
-
-                override fun onFailure(code: Int, error: String) {
-                    if (code == Error.ERROR_LOGGED_IN_EXPIRED) {
-                        showDialog(DialogUtil.build(this@MainActivity)
-                                .setTitle(R.string.title_dialog_logged_in_expired)
-                                .setMessage(R.string.message_dialog_logged_in_expired)
-                                .setPositiveButton(R.string.button_ok) { _: DialogInterface?, _: Int -> navigationHelper.navigationByData(NavigationHelper.ACTION_LOGIN) }
-                                .setCancelable(false)
-                                .create())
+                        .setPositiveButton(R.string.button_sure_default) { _: DialogInterface?, _: Int ->
+                            startActivity(
+                                UpdateInfoActivity.newIntent(
+                                    this,
+                                    UpdateInfoActivity.ACTION_UPDATE_LOGIN_INFO
+                                )
+                            )
                     }
-                }
-            })
+                    .setCancelable(false)
+                    .create())
+            }
         }, 1000)
-        if (BaseApplication.isFirstRun) {
+        if (App.isFirstRun) {
             goToActivity<NewIntroActivity>()
-        } else if (!AccountUtil.isLoggedIn(this)) {
+        } else if (!AccountUtil.isLoggedIn()) {
             navigationHelper.navigationByData(NavigationHelper.ACTION_LOGIN)
         }
     }
 
-    override fun recreate() {
-        super.recreate()
-        Log.i(TAG, "recreate: ")
-    }
-
+    @SuppressLint("MissingPermission")
     override fun onStart() {
         super.onStart()
-        registerReceiver(newMessageReceiver, ReceiverUtil.createIntentFilter(NotifyJobService.ACTION_NEW_MESSAGE))
-        registerReceiver(accountSwitchReceiver, ReceiverUtil.createIntentFilter(AccountUtil.ACTION_SWITCH_ACCOUNT))
+        ContextCompat.registerReceiver(
+            this,
+            newMessageReceiver,
+            newIntentFilter(NotifyJobService.ACTION_NEW_MESSAGE),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        ContextCompat.registerReceiver(
+            this,
+            accountSwitchReceiver,
+            newIntentFilter(AccountUtil.ACTION_SWITCH_ACCOUNT),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
         try {
             startService(Intent(this, NotifyJobService::class.java))
-            val builder = JobInfo.Builder(JobServiceUtil.getJobId(this), ComponentName(this, NotifyJobService::class.java))
-                    .setPersisted(true)
-                    .setPeriodic(30 * 60 * 1000L)
-                    .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+            val builder = JobInfo.Builder(
+                JobServiceUtil.getJobId(this),
+                ComponentName(this, NotifyJobService::class.java)
+            )
+                .setPersisted(true)
+                .setPeriodic(30 * 60 * 1000L)
+                .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
             val jobScheduler = getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler
             jobScheduler.schedule(builder.build())
-        } catch (ignored: Exception) {
-        }
+        } catch (ignored: Exception) {}
     }
 
     override fun onStop() {
