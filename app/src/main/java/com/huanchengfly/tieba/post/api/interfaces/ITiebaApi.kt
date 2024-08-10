@@ -10,8 +10,10 @@ import com.huanchengfly.tieba.post.api.models.protos.forumRuleDetail.ForumRuleDe
 import com.huanchengfly.tieba.post.api.models.protos.frsPage.FrsPageResponse
 import com.huanchengfly.tieba.post.api.models.protos.getBawuInfo.GetBawuInfoResponse
 import com.huanchengfly.tieba.post.api.models.protos.getForumDetail.GetForumDetailResponse
+import com.huanchengfly.tieba.post.api.models.protos.getHistoryForum.GetHistoryForumResponse
 import com.huanchengfly.tieba.post.api.models.protos.getLevelInfo.GetLevelInfoResponse
 import com.huanchengfly.tieba.post.api.models.protos.getMemberInfo.GetMemberInfoResponse
+import com.huanchengfly.tieba.post.api.models.protos.getUserInfo.GetUserInfoResponse
 import com.huanchengfly.tieba.post.api.models.protos.hotThreadList.HotThreadListResponse
 import com.huanchengfly.tieba.post.api.models.protos.pbFloor.PbFloorResponse
 import com.huanchengfly.tieba.post.api.models.protos.pbPage.PbPageResponse
@@ -947,6 +949,27 @@ interface ITiebaApi {
     ): Flow<SearchThreadBean>
 
     /**
+     * 吧内搜索
+     *
+     * @param keyword 搜索关键词
+     * @param forumName 搜索吧名
+     * @param forumId 搜索吧 ID
+     * @param sortType 排序模式（1 = 时间倒序，2 = 相关性排序）
+     * @param filterType 过滤（1 = 全部，2 = 仅看主题贴）
+     * @param page 分页页码（从 1 开始）
+     * @param pageSize 每页贴数（默认 20）
+     */
+    fun searchPostFlow(
+        keyword: String,
+        forumName: String,
+        forumId: Long,
+        sortType: Int = 1,
+        filterType: Int = 1,
+        page: Int = 1,
+        pageSize: Int = 20,
+    ): Flow<SearchThreadBean>
+
+    /**
      * 上传图片（web 接口）
      *
      * **需登录**
@@ -1178,8 +1201,17 @@ interface ITiebaApi {
      * @param postId PID
      */
     fun checkReportPost(
-        postId: String
+        postId: String,
     ): Call<CheckReportBean>
+
+    /**
+     * 获取举报贴子/回贴页面 URL
+     *
+     * @param postId PID
+     */
+    fun checkReportPostAsync(
+        postId: String,
+    ): Deferred<ApiResult<CheckReportBean>>
 
     /**
      * 获得当前用户昵称（需登录）
@@ -1191,7 +1223,7 @@ interface ITiebaApi {
      */
     fun initNickNameFlow(
         bduss: String,
-        sToken: String
+        sToken: String,
     ): Flow<InitNickNameBean>
 
     /**
@@ -1214,12 +1246,14 @@ interface ITiebaApi {
      * @param birthdayTime 生日时间戳 / 1000
      * @param intro 个人简介（最多 500 字）
      * @param sex 性别（1 = 男，2 = 女）
+     * @param nickName 昵称
      */
     fun profileModifyFlow(
         birthdayShowStatus: Boolean,
         birthdayTime: String,
         intro: String,
-        sex: String
+        sex: String,
+        nickName: String,
     ): Flow<CommonResponse>
 
     /**
@@ -1358,6 +1392,14 @@ interface ITiebaApi {
      *
      * @param threadId 贴子 ID
      * @param page 页码（从 1 开始）
+     * @param postId 回复 ID
+     * @param seeLz 是否只看楼主
+     * @param back 是否向前翻页
+     * @param sortType 排序类型
+     * @param forumId 吧 ID
+     * @param stType 来源类型（？）
+     * @param mark 是否收藏
+     * @param lastPostId 最后一条回复 ID
      */
     fun pbPageFlow(
         threadId: Long,
@@ -1369,6 +1411,7 @@ interface ITiebaApi {
         forumId: Long? = null,
         stType: String = "",
         mark: Int = 0,
+        lastPostId: Long? = null,
     ): Flow<PbPageResponse>
 
     /**
@@ -1461,4 +1504,25 @@ interface ITiebaApi {
         uid: String,
         page: Int = 1,
     ): Flow<UserLikeForumBean>
+
+    /**
+     * 获得当前用户信息（需登录）
+     */
+    fun getUserInfoFlow(): Flow<GetUserInfoResponse>
+
+    /**
+     * 获得用户信息
+     */
+    fun getUserInfoFlow(
+        uid: Long,
+        bduss: String?,
+        sToken: String?,
+    ): Flow<GetUserInfoResponse>
+
+    /**
+     * 获取吧浏览历史信息
+     */
+    fun getHistoryForumFlow(
+        history: String,
+    ): Flow<GetHistoryForumResponse>
 }

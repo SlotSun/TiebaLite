@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
-import android.graphics.drawable.Drawable
 import android.os.Build
 import android.view.View
 import android.view.ViewGroup
@@ -19,12 +18,11 @@ import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-import com.bumptech.glide.Glide
-import com.bumptech.glide.load.engine.DiskCacheStrategy
-import com.bumptech.glide.load.resource.bitmap.BitmapTransformation
-import com.bumptech.glide.request.RequestOptions
-import com.bumptech.glide.request.target.CustomViewTarget
-import com.bumptech.glide.request.transition.Transition
+import com.github.panpf.sketch.fetch.newFileUri
+import com.github.panpf.sketch.request.DisplayRequest
+import com.github.panpf.sketch.request.DisplayResult
+import com.github.panpf.sketch.request.execute
+import com.github.panpf.sketch.resize.Scale
 import com.google.android.material.appbar.AppBarLayout
 import com.huanchengfly.tieba.post.App
 import com.huanchengfly.tieba.post.App.Companion.INSTANCE
@@ -40,9 +38,7 @@ import com.huanchengfly.tieba.post.putBoolean
 import com.huanchengfly.tieba.post.putString
 import com.huanchengfly.tieba.post.ui.common.theme.utils.ThemeUtils
 import com.huanchengfly.tieba.post.ui.widgets.theme.TintSwipeRefreshLayout
-import com.scwang.smart.refresh.header.MaterialHeader
-import com.scwang.smart.refresh.layout.SmartRefreshLayout
-import java.io.File
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 object ThemeUtil {
@@ -196,34 +192,6 @@ object ThemeUtil {
     }
 
     @JvmStatic
-    fun setThemeForSmartRefreshLayout(smartRefreshLayout: SmartRefreshLayout) {
-        val context = smartRefreshLayout.context
-        val resources = context.resources
-        if (resources != null) {
-            smartRefreshLayout.setPrimaryColors(
-                ThemeUtils.getColorByAttr(
-                    context,
-                    R.attr.colorAccent
-                )
-            )
-        }
-    }
-
-    fun setThemeForMaterialHeader(materialHeader: MaterialHeader) {
-        val context = materialHeader.context
-        val resources = context.resources
-        if (resources != null) {
-            materialHeader.setProgressBackgroundColorSchemeColor(resources.getColor(R.color.color_swipe_refresh_bg))
-            materialHeader.setColorSchemeColors(
-                ThemeUtils.getColorByAttr(
-                    context,
-                    R.attr.colorAccent
-                )
-            )
-        }
-    }
-
-    @JvmStatic
     fun isNightMode(): Boolean {
         return isNightMode(getRawTheme())
     }
@@ -352,10 +320,10 @@ object ThemeUtil {
     }
 
     fun setTranslucentThemeBackground(
+        activity: BaseActivity,
         view: View?,
-        setFitsSystemWindow: Boolean,
-        useCache: Boolean,
-        vararg transformations: BitmapTransformation
+        setFitsSystemWindow: Boolean = true,
+        useCache: Boolean = false,
     ) {
         if (view == null) {
             return
@@ -389,48 +357,24 @@ object ThemeUtil {
             return
         }
         if (useCache && translucentBackground != null &&
-            (translucentBackground !is BitmapDrawable
-                    || translucentBackground is BitmapDrawable &&
-                    !(translucentBackground as BitmapDrawable?)!!.bitmap.isRecycled) &&
-            (transformations.isEmpty())
+            (translucentBackground !is BitmapDrawable || !(translucentBackground as BitmapDrawable).bitmap.isRecycled)
         ) {
             view.background = translucentBackground
             return
         }
-        var bgOptions = RequestOptions.centerCropTransform()
-            .optionalFitCenter()
-            .diskCacheStrategy(DiskCacheStrategy.NONE)
-        if (transformations.isNotEmpty()) {
-            bgOptions = bgOptions.transform(*transformations)
+        activity.launch {
+            val result = DisplayRequest(activity, newFileUri(backgroundFilePath)) {
+                resizeScale(Scale.CENTER_CROP)
+            }.execute()
+            if (result is DisplayResult.Success) {
+                if (useCache) {
+                    translucentBackground = result.drawable
+                }
+                view.background = result.drawable
+            } else {
+                view.setBackgroundColor(Color.BLACK)
+            }
         }
-        Glide.with(INSTANCE)
-            .asDrawable()
-            .load(File(backgroundFilePath))
-            .apply(bgOptions)
-            .into(object : CustomViewTarget<View, Drawable>(view) {
-                override fun onLoadFailed(errorDrawable: Drawable?) {
-                    getView().setBackgroundColor(Color.BLACK)
-                }
-
-                override fun onResourceReady(
-                    resource: Drawable,
-                    transition: Transition<in Drawable>?
-                ) {
-                    if (useCache && (transformations == null || transformations.isEmpty())) {
-                        translucentBackground = resource
-                    }
-                    getView().background = resource
-                }
-
-                override fun onResourceCleared(placeholder: Drawable?) {
-                    getView().setBackgroundColor(Color.BLACK)
-                }
-            })
-    }
-
-    @JvmStatic
-    fun setTranslucentThemeBackground(view: View?) {
-        setTranslucentThemeBackground(view, true, false)
     }
 
     @StyleRes

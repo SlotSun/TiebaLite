@@ -39,8 +39,8 @@ import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Tab
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
@@ -83,7 +83,6 @@ import com.google.accompanist.placeholder.PlaceholderHighlight
 import com.google.accompanist.placeholder.material.fade
 import com.google.accompanist.placeholder.material.placeholder
 import com.huanchengfly.tieba.post.R
-import com.huanchengfly.tieba.post.activities.SearchPostActivity
 import com.huanchengfly.tieba.post.api.models.protos.frsPage.ForumInfo
 import com.huanchengfly.tieba.post.arch.ImmutableHolder
 import com.huanchengfly.tieba.post.arch.collectPartialAsState
@@ -93,13 +92,14 @@ import com.huanchengfly.tieba.post.arch.onEvent
 import com.huanchengfly.tieba.post.arch.pageViewModel
 import com.huanchengfly.tieba.post.dataStore
 import com.huanchengfly.tieba.post.getInt
-import com.huanchengfly.tieba.post.goToActivity
+import com.huanchengfly.tieba.post.models.ForumHistoryExtra
 import com.huanchengfly.tieba.post.models.database.History
 import com.huanchengfly.tieba.post.toastShort
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
 import com.huanchengfly.tieba.post.ui.page.LocalNavigator
 import com.huanchengfly.tieba.post.ui.page.ProvideNavigator
 import com.huanchengfly.tieba.post.ui.page.destinations.ForumDetailPageDestination
+import com.huanchengfly.tieba.post.ui.page.destinations.ForumSearchPostPageDestination
 import com.huanchengfly.tieba.post.ui.page.forum.threadlist.ForumThreadListPage
 import com.huanchengfly.tieba.post.ui.page.forum.threadlist.ForumThreadListUiEvent
 import com.huanchengfly.tieba.post.ui.widgets.compose.Avatar
@@ -134,6 +134,8 @@ import com.ramcosta.composedestinations.navigation.DestinationsNavigator
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import kotlin.math.absoluteValue
 import kotlin.math.max
 import kotlin.math.min
@@ -475,7 +477,8 @@ fun ForumPage(
                     timestamp = System.currentTimeMillis(),
                     avatar = forum.avatar,
                     type = HistoryUtil.TYPE_FORUM,
-                    data = forum.name
+                    data = forum.name,
+                    extras = Json.encodeToString(ForumHistoryExtra(forum.id))
                 ),
                 true
             )
@@ -579,7 +582,8 @@ fun ForumPage(
                             ) {
                                 Text(text = stringResource(id = R.string.title_unfollow))
                             }
-                        }
+                        },
+                        forumId = forumInfo?.get { id }
                     )
                 },
                 floatingActionButton = {
@@ -957,7 +961,7 @@ private fun BackNavigationIconPlaceholder() {
         modifier = Modifier.alpha(0f)
     ) {
         Icon(
-            imageVector = Icons.Rounded.ArrowBack,
+            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
             contentDescription = null
         )
     }
@@ -968,9 +972,9 @@ private fun ForumToolbar(
     forumName: String,
     showTitle: Boolean,
     menuContent: @Composable (MenuScope.() -> Unit)? = null,
+    forumId: Long? = null,
 ) {
     val navigator = LocalNavigator.current
-    val context = LocalContext.current
     Toolbar(
         title = {
             if (showTitle) Text(
@@ -982,17 +986,17 @@ private fun ForumToolbar(
         },
         navigationIcon = { BackNavigationIcon(onBackPressed = { navigator.navigateUp() }) },
         actions = {
-            IconButton(
-                onClick = {
-                    context.goToActivity<SearchPostActivity> {
-                        putExtra(SearchPostActivity.PARAM_FORUM, forumName)
+            if (forumId != null) {
+                IconButton(
+                    onClick = {
+                        navigator.navigate(ForumSearchPostPageDestination(forumName, forumId))
                     }
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Search,
+                        contentDescription = stringResource(id = R.string.btn_search_in_forum)
+                    )
                 }
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Search,
-                    contentDescription = stringResource(id = R.string.btn_search_in_forum)
-                )
             }
             Box {
                 if (menuContent != null) {

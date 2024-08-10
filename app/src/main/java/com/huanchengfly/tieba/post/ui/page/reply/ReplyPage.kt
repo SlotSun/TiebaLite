@@ -37,6 +37,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Badge
 import androidx.compose.material.BadgedBox
@@ -46,13 +47,14 @@ import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.LocalTextStyle
 import androidx.compose.material.MaterialTheme
+import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.outlined.EmojiEmotions
 import androidx.compose.material.icons.outlined.InsertPhoto
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Send
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -66,7 +68,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -79,7 +80,6 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.widget.addTextChangedListener
-import com.effective.android.panel.utils.PanelUtil
 import com.github.panpf.sketch.compose.AsyncImage
 import com.google.accompanist.drawablepainter.rememberDrawablePainter
 import com.huanchengfly.tieba.post.R
@@ -99,9 +99,11 @@ import com.huanchengfly.tieba.post.ui.page.reply.ReplyPanelType.EMOJI
 import com.huanchengfly.tieba.post.ui.page.reply.ReplyPanelType.IMAGE
 import com.huanchengfly.tieba.post.ui.page.reply.ReplyPanelType.NONE
 import com.huanchengfly.tieba.post.ui.utils.imeNestedScroll
+import com.huanchengfly.tieba.post.ui.widgets.compose.BaseDialog
 import com.huanchengfly.tieba.post.ui.widgets.compose.Dialog
 import com.huanchengfly.tieba.post.ui.widgets.compose.DialogNegativeButton
 import com.huanchengfly.tieba.post.ui.widgets.compose.DialogPositiveButton
+import com.huanchengfly.tieba.post.ui.widgets.compose.DialogState
 import com.huanchengfly.tieba.post.ui.widgets.compose.MyBackHandler
 import com.huanchengfly.tieba.post.ui.widgets.compose.VerticalDivider
 import com.huanchengfly.tieba.post.ui.widgets.compose.rememberDialogState
@@ -112,6 +114,8 @@ import com.huanchengfly.tieba.post.utils.EmoticonManager
 import com.huanchengfly.tieba.post.utils.PickMediasRequest
 import com.huanchengfly.tieba.post.utils.StringUtil
 import com.huanchengfly.tieba.post.utils.appPreferences
+import com.huanchengfly.tieba.post.utils.hideKeyboard
+import com.huanchengfly.tieba.post.utils.showKeyboard
 import com.ramcosta.composedestinations.annotation.Destination
 import com.ramcosta.composedestinations.navigation.DestinationsNavigator
 import com.ramcosta.composedestinations.spec.DestinationStyleBottomSheet
@@ -130,15 +134,59 @@ import java.util.UUID
 import kotlin.concurrent.thread
 import kotlin.math.max
 
-// TODO: 将软键盘状态相关逻辑抽离出来
+data class ReplyArgs(
+    val forumId: Long,
+    val forumName: String,
+    val threadId: Long,
+    val postId: Long? = null,
+    val subPostId: Long? = null,
+    val replyUserId: Long? = null,
+    val replyUserName: String? = null,
+    val replyUserPortrait: String? = null,
+    val tbs: String? = null,
+)
+
+@Composable
+fun ReplyDialog(
+    args: ReplyArgs,
+    state: DialogState = rememberDialogState(),
+) {
+    BaseDialog(
+        dialogState = state,
+        imePadding = false,
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp),
+            color = ExtendedTheme.colors.windowBackground,
+            elevation = 0.dp,
+        ) {
+            ReplyPageContent(
+                viewModel = pageViewModel(),
+                onBack = { dismiss() },
+                forumId = args.forumId,
+                forumName = args.forumName,
+                threadId = args.threadId,
+                postId = args.postId,
+                subPostId = args.subPostId,
+                replyUserId = args.replyUserId,
+                replyUserName = args.replyUserName,
+                replyUserPortrait = args.replyUserPortrait,
+                tbs = args.tbs,
+                isDialog = true
+            )
+        }
+    }
+}
+
 @OptIn(
-    ExperimentalLayoutApi::class, ExperimentalComposeUiApi::class,
+    ExperimentalLayoutApi::class,
     FlowPreview::class
 )
-@Destination(style = DestinationStyleBottomSheet::class)
 @Composable
-fun ReplyPage(
-    navigator: DestinationsNavigator,
+internal fun ReplyPageContent(
+    viewModel: ReplyViewModel,
+    onBack: () -> Unit,
     forumId: Long,
     forumName: String,
     threadId: Long,
@@ -148,7 +196,7 @@ fun ReplyPage(
     replyUserName: String? = null,
     replyUserPortrait: String? = null,
     tbs: String? = null,
-    viewModel: ReplyViewModel = pageViewModel()
+    isDialog: Boolean = false,
 ) {
     val hash = remember(forumId, threadId, postId, subPostId) {
         "${threadId}_${postId}_${subPostId}".toMD5()
@@ -242,7 +290,7 @@ fun ReplyPage(
         } else {
             context.toastShort(R.string.toast_reply_success, it.expInc)
         }
-        LitePal.deleteAllAsync<Draft>("hash = ?", hash).listen { navigator.navigateUp() }
+        LitePal.deleteAllAsync<Draft>("hash = ?", hash).listen { onBack() }
     }
 
     var waitUploadSuccessToSend by remember { mutableStateOf(false) }
@@ -273,7 +321,7 @@ fun ReplyPage(
 
     fun showKeyboard() {
         editTextView?.apply {
-            PanelUtil.showKeyboard(context, this)
+            showKeyboard(context, this)
             requestFocus()
         }
         keyboardController?.show()
@@ -281,7 +329,7 @@ fun ReplyPage(
 
     fun hideKeyboard() {
         editTextView?.apply {
-            PanelUtil.hideKeyboard(context, this)
+            hideKeyboard(context, this)
             clearFocus()
         }
         keyboardController?.hide()
@@ -303,7 +351,7 @@ fun ReplyPage(
 
     MyBackHandler(
         enabled = curKeyboardType != NONE,
-        currentScreen = ReplyPageDestination
+        currentScreen = ReplyPageDestination.takeUnless { isDialog }
     ) {
         switchToPanel(NONE)
     }
@@ -564,7 +612,7 @@ fun ReplyPage(
                     modifier = Modifier.size(24.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Send,
+                        imageVector = Icons.AutoMirrored.Rounded.Send,
                         contentDescription = stringResource(id = R.string.send_reply),
                         modifier = Modifier.size(24.dp)
                     )
@@ -662,6 +710,7 @@ fun ReplyPage(
     val warningDialogState = rememberDialogState()
     Dialog(
         dialogState = warningDialogState,
+        title = { Text(text = stringResource(id = R.string.title_dialog_reply_warning)) },
         buttons = {
             DialogPositiveButton(
                 text = stringResource(id = R.string.button_official_client_reply),
@@ -670,10 +719,9 @@ fun ReplyPage(
             DialogNegativeButton(text = stringResource(id = R.string.btn_continue_reply))
             DialogNegativeButton(
                 text = stringResource(id = R.string.btn_cancel_reply),
-                onClick = { navigator.navigateUp() }
+                onClick = { onBack() }
             )
         },
-        title = { Text(text = stringResource(id = R.string.title_dialog_reply_warning)) },
     ) {
         Text(
             text = stringResource(id = R.string.message_dialog_reply_warning),
@@ -686,6 +734,37 @@ fun ReplyPage(
             warningDialogState.show()
         }
     }
+}
+
+// TODO: 将软键盘状态相关逻辑抽离出来
+@Destination(style = DestinationStyleBottomSheet::class)
+@Composable
+fun ReplyPage(
+    navigator: DestinationsNavigator,
+    forumId: Long,
+    forumName: String,
+    threadId: Long,
+    postId: Long? = null,
+    subPostId: Long? = null,
+    replyUserId: Long? = null,
+    replyUserName: String? = null,
+    replyUserPortrait: String? = null,
+    tbs: String? = null,
+    viewModel: ReplyViewModel = pageViewModel(),
+) {
+    ReplyPageContent(
+        viewModel = viewModel,
+        onBack = { navigator.navigateUp() },
+        forumId = forumId,
+        forumName = forumName,
+        threadId = threadId,
+        postId = postId,
+        subPostId = subPostId,
+        replyUserId = replyUserId,
+        replyUserName = replyUserName,
+        replyUserPortrait = replyUserPortrait,
+        tbs = tbs
+    )
 }
 
 @Composable

@@ -2,6 +2,7 @@ package com.huanchengfly.tieba.post.ui.page.thread
 
 import android.util.Log
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -32,6 +33,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material.ButtonDefaults
+import androidx.compose.material.CircularProgressIndicator
 import androidx.compose.material.DropdownMenuItem
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.Icon
@@ -44,9 +46,10 @@ import androidx.compose.material.SnackbarResult
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ChromeReaderMode
+import androidx.compose.material.icons.automirrored.outlined.ChromeReaderMode
+import androidx.compose.material.icons.automirrored.rounded.ChromeReaderMode
+import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.AlignVerticalTop
-import androidx.compose.material.icons.rounded.ChromeReaderMode
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Face6
@@ -57,7 +60,6 @@ import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Report
 import androidx.compose.material.icons.rounded.RocketLaunch
 import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.Sort
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
@@ -120,8 +122,10 @@ import com.huanchengfly.tieba.post.ui.common.PbContentText
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
 import com.huanchengfly.tieba.post.ui.common.theme.compose.invertChipBackground
 import com.huanchengfly.tieba.post.ui.common.theme.compose.invertChipContent
+import com.huanchengfly.tieba.post.ui.common.theme.compose.loadMoreIndicator
 import com.huanchengfly.tieba.post.ui.common.theme.compose.pullRefreshIndicator
 import com.huanchengfly.tieba.post.ui.common.theme.compose.threadBottomBar
+import com.huanchengfly.tieba.post.ui.page.LocalNavigator
 import com.huanchengfly.tieba.post.ui.page.ProvideNavigator
 import com.huanchengfly.tieba.post.ui.page.destinations.CopyTextDialogPageDestination
 import com.huanchengfly.tieba.post.ui.page.destinations.ForumPageDestination
@@ -129,13 +133,13 @@ import com.huanchengfly.tieba.post.ui.page.destinations.ReplyPageDestination
 import com.huanchengfly.tieba.post.ui.page.destinations.SubPostsSheetPageDestination
 import com.huanchengfly.tieba.post.ui.page.destinations.ThreadPageDestination
 import com.huanchengfly.tieba.post.ui.page.destinations.UserProfilePageDestination
-import com.huanchengfly.tieba.post.ui.widgets.Chip
 import com.huanchengfly.tieba.post.ui.widgets.compose.Avatar
 import com.huanchengfly.tieba.post.ui.widgets.compose.BackNavigationIcon
 import com.huanchengfly.tieba.post.ui.widgets.compose.BlockTip
 import com.huanchengfly.tieba.post.ui.widgets.compose.BlockableContent
 import com.huanchengfly.tieba.post.ui.widgets.compose.Button
 import com.huanchengfly.tieba.post.ui.widgets.compose.Card
+import com.huanchengfly.tieba.post.ui.widgets.compose.Chip
 import com.huanchengfly.tieba.post.ui.widgets.compose.ConfirmDialog
 import com.huanchengfly.tieba.post.ui.widgets.compose.Container
 import com.huanchengfly.tieba.post.ui.widgets.compose.ErrorScreen
@@ -183,16 +187,18 @@ private fun getDescText(
     floor: Int,
     ipAddress: String?
 ): String {
-    val texts = mutableListOf<String>()
-    if (time != null) texts.add(getRelativeTimeString(App.INSTANCE, time))
-    if (floor > 1) texts.add(App.INSTANCE.getString(R.string.tip_post_floor, floor))
-    if (!ipAddress.isNullOrEmpty()) texts.add(
-        App.INSTANCE.getString(
+    val texts = listOfNotNull(
+        time?.let { getRelativeTimeString(App.INSTANCE, it) },
+        if (floor > 1) App.INSTANCE.getString(R.string.tip_post_floor, floor) else null,
+        if (ipAddress.isNullOrEmpty()) null else App.INSTANCE.getString(
             R.string.text_ip_location,
-            "$ipAddress"
+            ipAddress
         )
     )
-    return texts.joinToString(" ")
+    if (texts.isEmpty()) {
+        return ""
+    }
+    return texts.joinToString(" · ")
 }
 
 @Composable
@@ -399,8 +405,73 @@ data object ThreadPageNoExtra : ThreadPageExtra
 @Serializable
 data class ThreadPageFromStoreExtra(
     val maxPid: Long,
-    val maxFloor: Int
+    val maxFloor: Int,
 ) : ThreadPageExtra
+
+@Composable
+private fun ThreadLoadMoreIndicator(
+    isLoading: Boolean,
+    loadMoreEnd: Boolean,
+    willLoad: Boolean,
+    hasMore: Boolean,
+) {
+    Surface(
+        elevation = 8.dp,
+        shape = RoundedCornerShape(100),
+        color = ExtendedTheme.colors.loadMoreIndicator,
+        contentColor = ExtendedTheme.colors.text
+    ) {
+        Row(
+            modifier = Modifier
+                .height(IntrinsicSize.Min)
+                .padding(10.dp)
+                .animateContentSize(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ProvideTextStyle(value = MaterialTheme.typography.body2.copy(fontSize = 13.sp)) {
+                when {
+                    isLoading -> {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 3.dp,
+                            color = ExtendedTheme.colors.primary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = stringResource(id = R.string.text_loading),
+                            modifier = Modifier.padding(horizontal = 8.dp)
+                        )
+                    }
+
+                    loadMoreEnd -> {
+                        Text(
+                            text = stringResource(id = R.string.no_more),
+                            modifier = Modifier.padding(horizontal = 8.dp)
+                        )
+                    }
+
+                    hasMore -> {
+                        Text(
+                            text = if (willLoad) stringResource(id = R.string.release_to_load) else stringResource(
+                                id = R.string.pull_to_load
+                            ),
+                            modifier = Modifier.padding(horizontal = 8.dp)
+                        )
+                    }
+
+                    else -> {
+                        Text(
+                            text = if (willLoad) stringResource(id = R.string.release_to_load_latest_posts) else stringResource(
+                                id = R.string.pull_to_load_latest_posts
+                            ),
+                            modifier = Modifier.padding(horizontal = 8.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterialApi::class)
 @Destination(
@@ -420,7 +491,7 @@ fun ThreadPage(
     extra: ThreadPageExtra? = null,
     threadInfo: ThreadInfo? = null,
     scrollToReply: Boolean = false,
-    viewModel: ThreadViewModel = pageViewModel()
+    viewModel: ThreadViewModel = pageViewModel(),
 ) {
     LazyLoad(loaded = viewModel.initialized) {
         viewModel.send(
@@ -535,6 +606,25 @@ fun ThreadPage(
     val isEmpty by remember {
         derivedStateOf { data.isEmpty() && firstPost == null }
     }
+    val enablePullRefresh by remember {
+        derivedStateOf {
+            hasPrevious || curSortType == ThreadSortType.SORT_TYPE_DESC
+        }
+    }
+    val loadMoreEnd by remember {
+        derivedStateOf {
+            !hasMore && curSortType == ThreadSortType.SORT_TYPE_DESC
+        }
+    }
+    val loadMorePreloadCount by remember {
+        derivedStateOf {
+            if (hasMore) {
+                1
+            } else {
+                0
+            }
+        }
+    }
     val isCollected = remember(thread) {
         thread?.get { collectStatus != 0 } == true
     }
@@ -623,7 +713,7 @@ fun ThreadPage(
         filter = { it.threadId == threadId }
     ) { event ->
         viewModel.send(
-            ThreadUiIntent.LoadLatestReply(
+            ThreadUiIntent.LoadMyLatestReply(
                 threadId = threadId,
                 postId = event.newPostId,
                 forumId = curForumId,
@@ -1167,10 +1257,13 @@ fun ThreadPage(
                                     thread?.get { firstPostId }.takeIf { it != 0L }
                                         ?: firstPost?.get { id }
                                         ?: 0L
-                                TiebaUtil.reportPost(
-                                    context,
-                                    firstPostId.toString()
-                                )
+                                coroutineScope.launch {
+                                    TiebaUtil.reportPost(
+                                        context,
+                                        navigator,
+                                        firstPostId.toString()
+                                    )
+                                }
                             },
                             onDeleteClick = {
                                 deletePost = null
@@ -1189,27 +1282,48 @@ fun ThreadPage(
                 ) {
                     Box(
                         modifier = Modifier
-                            .pullRefresh(state = pullRefreshState, enabled = hasPrevious)
+                            .pullRefresh(state = pullRefreshState, enabled = enablePullRefresh)
                     ) {
                         LoadMoreLayout(
                             isLoading = isLoadingMore,
                             onLoadMore = {
-                                viewModel.send(
-                                    ThreadUiIntent.LoadMore(
-                                        threadId = threadId,
-                                        page = if (curSortType == ThreadSortType.SORT_TYPE_DESC) totalPage - currentPageMax
-                                        else currentPageMax + 1,
-                                        forumId = forumId,
-                                        postId = nextPagePostId,
-                                        seeLz = isSeeLz,
-                                        sortType = curSortType,
-                                        postIds = data.map { it.post.get { id } }
+                                if (hasMore) {
+                                    viewModel.send(
+                                        ThreadUiIntent.LoadMore(
+                                            threadId = threadId,
+                                            page = if (curSortType == ThreadSortType.SORT_TYPE_DESC) totalPage - currentPageMax
+                                            else currentPageMax + 1,
+                                            forumId = forumId,
+                                            postId = nextPagePostId,
+                                            seeLz = isSeeLz,
+                                            sortType = curSortType,
+                                            postIds = data.map { it.post.get { id } }
+                                        )
                                     )
+                                } else if (data.isNotEmpty() && curSortType != ThreadSortType.SORT_TYPE_DESC) {
+                                    viewModel.send(
+                                        ThreadUiIntent.LoadLatestPosts(
+                                            threadId = threadId,
+                                            curLatestPostId = data.last().post.get { id },
+                                            forumId = curForumId,
+                                            seeLz = isSeeLz,
+                                            sortType = curSortType
+                                        )
+                                    )
+                                }
+                            },
+                            loadEnd = loadMoreEnd,
+                            indicator = { isLoading, loadMoreEnd, willLoad ->
+                                ThreadLoadMoreIndicator(
+                                    isLoading,
+                                    loadMoreEnd,
+                                    willLoad,
+                                    hasMore
                                 )
                             },
-                            loadEnd = !hasMore,
                             lazyListState = lazyListState,
-                            isEmpty = data.isEmpty()
+                            isEmpty = data.isEmpty(),
+                            preloadCount = loadMorePreloadCount,
                         ) {
                             MyLazyColumn(
                                 state = lazyListState,
@@ -1315,55 +1429,60 @@ fun ThreadPage(
                                                 modifier = Modifier.padding(horizontal = 8.dp),
                                             )
                                             Spacer(modifier = Modifier.weight(1f))
-                                            Text(
-                                                text = stringResource(R.string.text_all),
-                                                modifier = Modifier
-                                                    .padding(horizontal = 8.dp)
-                                                    .clickable(
-                                                        interactionSource = remember { MutableInteractionSource() },
-                                                        indication = null,
-                                                        enabled = isSeeLz
-                                                    ) {
-                                                        if (isSeeLz) {
-                                                            viewModel.send(
-                                                                ThreadUiIntent.LoadFirstPage(
-                                                                    threadId = threadId,
-                                                                    forumId = forumId,
-                                                                    seeLz = false,
-                                                                    sortType = curSortType
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.height(IntrinsicSize.Min)
+                                            ) {
+                                                Text(
+                                                    text = stringResource(R.string.text_all),
+                                                    modifier = Modifier
+                                                        .padding(horizontal = 8.dp)
+                                                        .clickable(
+                                                            interactionSource = remember { MutableInteractionSource() },
+                                                            indication = null,
+                                                            enabled = isSeeLz
+                                                        ) {
+                                                            if (isSeeLz) {
+                                                                viewModel.send(
+                                                                    ThreadUiIntent.LoadFirstPage(
+                                                                        threadId = threadId,
+                                                                        forumId = forumId,
+                                                                        seeLz = false,
+                                                                        sortType = curSortType
+                                                                    )
                                                                 )
-                                                            )
-                                                        }
-                                                    },
-                                                fontSize = 13.sp,
-                                                fontWeight = if (!isSeeLz) FontWeight.SemiBold else FontWeight.Normal,
-                                                color = if (!isSeeLz) ExtendedTheme.colors.text else ExtendedTheme.colors.textSecondary,
-                                            )
-                                            HorizontalDivider()
-                                            Text(
-                                                text = stringResource(R.string.title_see_lz),
-                                                modifier = Modifier
-                                                    .padding(horizontal = 8.dp)
-                                                    .clickable(
-                                                        interactionSource = remember { MutableInteractionSource() },
-                                                        indication = null,
-                                                        enabled = !isSeeLz
-                                                    ) {
-                                                        if (!isSeeLz) {
-                                                            viewModel.send(
-                                                                ThreadUiIntent.LoadFirstPage(
-                                                                    threadId = threadId,
-                                                                    forumId = forumId,
-                                                                    seeLz = true,
-                                                                    sortType = curSortType
+                                                            }
+                                                        },
+                                                    fontSize = 13.sp,
+                                                    fontWeight = if (!isSeeLz) FontWeight.SemiBold else FontWeight.Normal,
+                                                    color = if (!isSeeLz) ExtendedTheme.colors.text else ExtendedTheme.colors.textSecondary,
+                                                )
+                                                HorizontalDivider()
+                                                Text(
+                                                    text = stringResource(R.string.title_see_lz),
+                                                    modifier = Modifier
+                                                        .padding(horizontal = 8.dp)
+                                                        .clickable(
+                                                            interactionSource = remember { MutableInteractionSource() },
+                                                            indication = null,
+                                                            enabled = !isSeeLz
+                                                        ) {
+                                                            if (!isSeeLz) {
+                                                                viewModel.send(
+                                                                    ThreadUiIntent.LoadFirstPage(
+                                                                        threadId = threadId,
+                                                                        forumId = forumId,
+                                                                        seeLz = true,
+                                                                        sortType = curSortType
+                                                                    )
                                                                 )
-                                                            )
-                                                        }
-                                                    },
-                                                fontSize = 13.sp,
-                                                fontWeight = if (isSeeLz) FontWeight.SemiBold else FontWeight.Normal,
-                                                color = if (isSeeLz) ExtendedTheme.colors.text else ExtendedTheme.colors.textSecondary,
-                                            )
+                                                            }
+                                                        },
+                                                    fontSize = 13.sp,
+                                                    fontWeight = if (isSeeLz) FontWeight.SemiBold else FontWeight.Normal,
+                                                    color = if (isSeeLz) ExtendedTheme.colors.text else ExtendedTheme.colors.textSecondary,
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -1488,6 +1607,7 @@ private fun TopBar(
                 if (forum.get { name }.isNotBlank()) {
                     Row(
                         modifier = Modifier
+                            .padding(horizontal = 48.dp)
                             .height(IntrinsicSize.Min)
                             .clip(RoundedCornerShape(100))
                             .background(ExtendedTheme.colors.chip)
@@ -1507,7 +1627,9 @@ private fun TopBar(
                             text = stringResource(id = R.string.title_forum, it.get { name }),
                             fontSize = 14.sp,
                             color = ExtendedTheme.colors.text,
-                            modifier = Modifier.padding(horizontal = 8.dp)
+                            modifier = Modifier.padding(horizontal = 8.dp),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }
@@ -1626,6 +1748,8 @@ fun PostCard(
     onMenuDeleteClick: ((Post) -> Unit)? = null,
 ) {
     val context = LocalContext.current
+    val navigator = LocalNavigator.current
+    val coroutineScope = rememberCoroutineScope()
     val post = remember(postHolder) { postHolder.get() }
     val hasPadding = remember(key1 = postHolder, key2 = immersiveMode) {
         postHolder.get { floor > 1 } && !immersiveMode
@@ -1685,7 +1809,9 @@ fun PostCard(
                 }
                 DropdownMenuItem(
                     onClick = {
-                        TiebaUtil.reportPost(context, post.id.toString())
+                        coroutineScope.launch {
+                            TiebaUtil.reportPost(context, navigator, post.id.toString())
+                        }
                         menuState.expanded = false
                     }
                 ) {
@@ -1871,6 +1997,8 @@ private fun SubPostItem(
     onMenuCopyClick: ((SubPostList) -> Unit)?,
 ) {
     val context = LocalContext.current
+    val navigator = LocalNavigator.current
+    val coroutineScope = rememberCoroutineScope()
     val menuState = rememberMenuState()
     LongClickMenu(
         menuState = menuState,
@@ -1897,7 +2025,9 @@ private fun SubPostItem(
             }
             DropdownMenuItem(
                 onClick = {
-                    TiebaUtil.reportPost(context, subPostList.get { id }.toString())
+                    coroutineScope.launch {
+                        TiebaUtil.reportPost(context, navigator, subPostList.get { id }.toString())
+                    }
                     menuState.expanded = false
                 }
             ) {
@@ -2062,7 +2192,7 @@ private fun ThreadMenu(
                     onClick = onImmersiveModeClick,
                     icon = {
                         Icon(
-                            imageVector = if (isImmersiveMode) Icons.Rounded.ChromeReaderMode else Icons.Outlined.ChromeReaderMode,
+                            imageVector = if (isImmersiveMode) Icons.AutoMirrored.Rounded.ChromeReaderMode else Icons.AutoMirrored.Outlined.ChromeReaderMode,
                             contentDescription = null
                         )
                     },
@@ -2083,7 +2213,7 @@ private fun ThreadMenu(
                     onClick = onDescClick,
                     icon = {
                         Icon(
-                            imageVector = Icons.Rounded.Sort,
+                            imageVector = Icons.AutoMirrored.Rounded.Sort,
                             contentDescription = null
                         )
                     },

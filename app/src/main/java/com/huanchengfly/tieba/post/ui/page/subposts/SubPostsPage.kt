@@ -24,13 +24,14 @@ import androidx.compose.material.IconButton
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.OpenInBrowser
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,9 +56,10 @@ import com.huanchengfly.tieba.post.ui.common.theme.compose.threadBottomBar
 import com.huanchengfly.tieba.post.ui.page.LocalNavigator
 import com.huanchengfly.tieba.post.ui.page.ProvideNavigator
 import com.huanchengfly.tieba.post.ui.page.destinations.CopyTextDialogPageDestination
-import com.huanchengfly.tieba.post.ui.page.destinations.ReplyPageDestination
 import com.huanchengfly.tieba.post.ui.page.destinations.ThreadPageDestination
 import com.huanchengfly.tieba.post.ui.page.destinations.UserProfilePageDestination
+import com.huanchengfly.tieba.post.ui.page.reply.ReplyArgs
+import com.huanchengfly.tieba.post.ui.page.reply.ReplyDialog
 import com.huanchengfly.tieba.post.ui.page.thread.PostAgreeBtn
 import com.huanchengfly.tieba.post.ui.page.thread.PostCard
 import com.huanchengfly.tieba.post.ui.page.thread.UserNameText
@@ -88,6 +90,7 @@ import com.ramcosta.composedestinations.navigation.DestinationsNavigator
 import com.ramcosta.composedestinations.spec.DestinationStyleBottomSheet
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Destination
 @Composable
@@ -107,7 +110,8 @@ fun SubPostsPage(
             threadId = threadId,
             postId = postId,
             subPostId = subPostId,
-            loadFromSubPost = loadFromSubPost
+            loadFromSubPost = loadFromSubPost,
+            onNavigateUp = { navigator.navigateUp() }
         )
     }
 }
@@ -133,7 +137,8 @@ fun SubPostsSheetPage(
             postId = postId,
             subPostId = subPostId,
             loadFromSubPost = loadFromSubPost,
-            isSheet = true
+            isSheet = true,
+            onNavigateUp = { navigator.navigateUp() }
         )
     }
 }
@@ -147,13 +152,13 @@ internal fun SubPostsContent(
     postId: Long,
     subPostId: Long = 0L,
     loadFromSubPost: Boolean = false,
-    isSheet: Boolean = false
+    isSheet: Boolean = false,
+    onNavigateUp: () -> Unit = {},
 ) {
-    val context = LocalContext.current
     val navigator = LocalNavigator.current
     val account = LocalAccount.current
 
-    LazyLoad(loaded = viewModel.initialized) {
+    LazyLoad(key = viewModel, loaded = viewModel.initialized) {
         viewModel.send(
             SubPostsUiIntent.Load(
                 forumId,
@@ -261,6 +266,30 @@ internal fun SubPostsContent(
         )
     }
 
+    val replyDialogState = rememberDialogState()
+    var currentReplyArgs by remember { mutableStateOf<ReplyArgs?>(null) }
+    if (currentReplyArgs != null) {
+        ReplyDialog(args = currentReplyArgs!!, state = replyDialogState)
+    }
+
+//    onGlobalEvent<GlobalEvent.ReplySuccess>(
+//        filter = { it.threadId == threadId && it.postId == postId }
+//    ) { event ->
+//        viewModel.send(
+//            SubPostsUiIntent.Load(
+//                forumId,
+//                threadId,
+//                postId,
+//                subPostId.takeIf { loadFromSubPost } ?: 0L
+//            )
+//        )
+//    }
+
+    fun showReplyDialog(args: ReplyArgs) {
+        currentReplyArgs = args
+        replyDialogState.show()
+    }
+
     StateScreen(
         modifier = Modifier.fillMaxSize(),
         isEmpty = subPosts.isEmpty(),
@@ -280,9 +309,9 @@ internal fun SubPostsContent(
                             fontWeight = FontWeight.Bold, style = MaterialTheme.typography.h6)
                     },
                     navigationIcon = {
-                        IconButton(onClick = { navigator.navigateUp() }) {
+                        IconButton(onClick = onNavigateUp) {
                             Icon(
-                                imageVector = if (isSheet) Icons.Rounded.Close else Icons.Rounded.ArrowBack,
+                                imageVector = if (isSheet) Icons.Rounded.Close else Icons.AutoMirrored.Rounded.ArrowBack,
                                 contentDescription = stringResource(id = R.string.btn_close)
                             )
                         }
@@ -334,8 +363,8 @@ internal fun SubPostsContent(
                                         val fid = forum?.get { id } ?: forumId
                                         val forumName = forum?.get { name }
                                         if (!forumName.isNullOrEmpty()) {
-                                            navigator.navigate(
-                                                ReplyPageDestination(
+                                            showReplyDialog(
+                                                ReplyArgs(
                                                     forumId = fid,
                                                     forumName = forumName,
                                                     threadId = threadId,
@@ -409,8 +438,8 @@ internal fun SubPostsContent(
                                         )
                                     },
                                     onReplyClick = {
-                                        navigator.navigate(
-                                            ReplyPageDestination(
+                                        showReplyDialog(
+                                            ReplyArgs(
                                                 forumId = forumId,
                                                 forumName = forum?.get { name } ?: "",
                                                 threadId = threadId,
@@ -475,8 +504,8 @@ internal fun SubPostsContent(
                                 )
                             },
                             onReplyClick = {
-                                navigator.navigate(
-                                    ReplyPageDestination(
+                                showReplyDialog(
+                                    ReplyArgs(
                                         forumId = forumId,
                                         forumName = forum?.get { name } ?: "",
                                         threadId = threadId,
@@ -511,14 +540,11 @@ private fun getDescText(
     time: Long?,
     ipAddress: String?
 ): String {
-    val texts = mutableListOf<String>()
-    if (time != null) texts.add(DateTimeUtils.getRelativeTimeString(App.INSTANCE, time))
-    if (!ipAddress.isNullOrEmpty()) texts.add(
-        App.INSTANCE.getString(
-            R.string.text_ip_location,
-            "$ipAddress"
-        )
+    val texts = listOfNotNull(
+        time?.let { DateTimeUtils.getRelativeTimeString(App.INSTANCE, it) },
+        ipAddress?.let { App.INSTANCE.getString(R.string.text_ip_location, it) }
     )
+    if (texts.isEmpty()) return ""
     return texts.joinToString(" ")
 }
 
@@ -535,6 +561,8 @@ private fun SubPostItem(
 ) {
     val (subPost, contentRenders, blocked) = item
     val context = LocalContext.current
+    val navigator = LocalNavigator.current
+    val coroutineScope = rememberCoroutineScope()
     val author = remember(subPost) { subPost.get { author }?.wrapImmutable() }
     val hasAgreed = remember(subPost) {
         subPost.get { agree?.hasAgree == 1 }
@@ -576,7 +604,9 @@ private fun SubPostItem(
                 }
                 DropdownMenuItem(
                     onClick = {
-                        TiebaUtil.reportPost(context, subPost.get { id }.toString())
+                        coroutineScope.launch {
+                            TiebaUtil.reportPost(context, navigator, subPost.get { id }.toString())
+                        }
                         menuState.expanded = false
                     }
                 ) {

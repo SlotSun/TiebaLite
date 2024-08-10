@@ -80,6 +80,8 @@ import com.huanchengfly.tieba.post.components.ClipBoardThreadLink
 import com.huanchengfly.tieba.post.services.NotifyJobService
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
 import com.huanchengfly.tieba.post.ui.page.NavGraphs
+import com.huanchengfly.tieba.post.ui.page.destinations.ForumPageDestination
+import com.huanchengfly.tieba.post.ui.page.destinations.ThreadPageDestination
 import com.huanchengfly.tieba.post.ui.utils.DevicePosture
 import com.huanchengfly.tieba.post.ui.utils.isBookPosture
 import com.huanchengfly.tieba.post.ui.utils.isSeparating
@@ -99,8 +101,9 @@ import com.huanchengfly.tieba.post.utils.PickMediasRequest
 import com.huanchengfly.tieba.post.utils.QuickPreviewUtil
 import com.huanchengfly.tieba.post.utils.ThemeUtil
 import com.huanchengfly.tieba.post.utils.TiebaUtil
+import com.huanchengfly.tieba.post.utils.compose.LaunchActivityForResult
+import com.huanchengfly.tieba.post.utils.compose.LaunchActivityRequest
 import com.huanchengfly.tieba.post.utils.isIgnoringBatteryOptimizations
-import com.huanchengfly.tieba.post.utils.launchUrl
 import com.huanchengfly.tieba.post.utils.newIntentFilter
 import com.huanchengfly.tieba.post.utils.registerPickMediasLauncher
 import com.huanchengfly.tieba.post.utils.requestIgnoreBatteryOptimizations
@@ -109,8 +112,11 @@ import com.microsoft.appcenter.analytics.Analytics
 import com.ramcosta.composedestinations.DestinationsNavHost
 import com.ramcosta.composedestinations.animations.defaults.RootNavGraphDefaultAnimations
 import com.ramcosta.composedestinations.animations.rememberAnimatedNavHostEngine
+import com.ramcosta.composedestinations.navigation.navigate
 import com.ramcosta.composedestinations.spec.DestinationSpec
+import com.ramcosta.composedestinations.spec.Direction
 import com.ramcosta.composedestinations.utils.currentDestinationAsState
+import com.ramcosta.composedestinations.utils.currentDestinationFlow
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.BufferOverflow
@@ -123,7 +129,9 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
 
 val LocalNotificationCountFlow =
     staticCompositionLocalOf<Flow<Int>> { throw IllegalStateException("not allowed here!") }
@@ -160,6 +168,12 @@ class MainActivityV2 : BaseComposeActivity() {
             emitGlobalEvent(GlobalEvent.SelectedImages(it.id, it.uris))
         }
 
+    private val mLaunchActivityForResultLauncher = registerForActivityResult(
+        LaunchActivityForResult()
+    ) {
+        emitGlobalEvent(GlobalEvent.ActivityResult(it.requesterId, it.resultCode, it.intent))
+    }
+
     private val devicePostureFlow: StateFlow<DevicePosture> by lazy {
         WindowInfoTracker.getOrCreate(this)
             .windowLayoutInfo(this)
@@ -186,12 +200,61 @@ class MainActivityV2 : BaseComposeActivity() {
             )
     }
 
-    private var myNavCollector: NavHostController? = null
+    private var direction: Direction? = null
+    private var waitingNavCollectorToNavigate = AtomicBoolean(false)
+    private var myNavController: NavHostController? = null
+        set(value) {
+            field = value
+            if (value != null && waitingNavCollectorToNavigate.get() && direction != null) {
+                launch {
+                    value.currentDestinationFlow
+                        .take(1)
+                        .collect {
+                            if (waitingNavCollectorToNavigate.get() && direction != null) {
+                                value.navigate(direction!!)
+                                waitingNavCollectorToNavigate.set(false)
+                                direction = null
+                            }
+                        }
+                }
+            }
+        }
+
+    private fun navigate(direction: Direction) {
+        if (myNavController == null) {
+            waitingNavCollectorToNavigate.set(true)
+            this.direction = direction
+        } else {
+            myNavController?.navigate(direction)
+        }
+    }
+
+    private fun checkIntent(intent: Intent): Boolean {
+        return if (intent.data?.scheme == "com.baidu.tieba" && intent.data?.host == "unidispatch") {
+            val uri = intent.data!!
+            when (uri.path.orEmpty().lowercase()) {
+                "/frs" -> {
+                    val forumName = uri.getQueryParameter("kw") ?: return true
+                    navigate(ForumPageDestination(forumName))
+                }
+
+                "/pb" -> {
+                    val threadId = uri.getQueryParameter("tid")?.toLongOrNull() ?: return true
+                    navigate(ThreadPageDestination(threadId))
+                }
+            }
+            true
+        } else {
+            false
+        }
+    }
 
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
         intent?.let {
-            myNavCollector?.handleDeepLink(it)
+            if (!checkIntent(it)) {
+                myNavController?.handleDeepLink(it)
+            }
         }
     }
 
@@ -257,6 +320,7 @@ class MainActivityV2 : BaseComposeActivity() {
         launch {
             ClientUtils.setActiveTimestamp()
         }
+        intent?.let { checkIntent(it) }
     }
 
     override fun onCreateContent(systemUiController: SystemUiController) {
@@ -268,15 +332,15 @@ class MainActivityV2 : BaseComposeActivity() {
     private fun openClipBoardLink(link: ClipBoardLink) {
         when (link) {
             is ClipBoardThreadLink -> {
-                myNavCollector?.navigate(Uri.parse("tblite://thread/${link.threadId}"))
+                myNavController?.navigate(Uri.parse("tblite://thread/${link.threadId}"))
             }
 
             is ClipBoardForumLink -> {
-                myNavCollector?.navigate(Uri.parse("tblite://forum/${link.forumName}"))
+                myNavController?.navigate(Uri.parse("tblite://forum/${link.forumName}"))
             }
 
             else -> {
-                launchUrl(this, link.url)
+//                launchUrl(this, link.url)
             }
         }
     }
@@ -306,51 +370,50 @@ class MainActivityV2 : BaseComposeActivity() {
                 }
                 DialogNegativeButton(text = stringResource(id = R.string.btn_close))
             },
-            content = {
-                previewInfo?.let {
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 24.dp),
-                        border = BorderStroke(1.dp, ExtendedTheme.colors.divider),
-                        shape = RoundedCornerShape(6.dp)
+        ) {
+            previewInfo?.let {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp),
+                    border = BorderStroke(1.dp, ExtendedTheme.colors.divider),
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.padding(16.dp)
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(16.dp),
-                            modifier = Modifier.padding(16.dp)
-                        ) {
-                            it.icon?.let { icon ->
-                                if (icon.type == QuickPreviewUtil.Icon.TYPE_DRAWABLE_RES) {
-                                    AvatarIcon(
-                                        resId = icon.res,
-                                        size = Sizes.Medium,
-                                        contentDescription = null
-                                    )
-                                } else {
-                                    Avatar(
-                                        data = icon.url,
-                                        size = Sizes.Medium,
-                                        contentDescription = null
-                                    )
-                                }
+                        it.icon?.let { icon ->
+                            if (icon.type == QuickPreviewUtil.Icon.TYPE_DRAWABLE_RES) {
+                                AvatarIcon(
+                                    resId = icon.res,
+                                    size = Sizes.Medium,
+                                    contentDescription = null
+                                )
+                            } else {
+                                Avatar(
+                                    data = icon.url,
+                                    size = Sizes.Medium,
+                                    contentDescription = null
+                                )
                             }
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                it.title?.let { title ->
-                                    Text(text = title, style = MaterialTheme.typography.subtitle1)
-                                }
-                                it.subtitle?.let { subtitle ->
-                                    Text(text = subtitle, style = MaterialTheme.typography.body2)
-                                }
+                        }
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            it.title?.let { title ->
+                                Text(text = title, style = MaterialTheme.typography.subtitle1)
+                            }
+                            it.subtitle?.let { subtitle ->
+                                Text(text = subtitle, style = MaterialTheme.typography.body2)
                             }
                         }
                     }
                 }
-            },
-        )
+            }
+        }
     }
 
     @OptIn(ExperimentalMaterialNavigationApi::class)
@@ -390,12 +453,17 @@ class MainActivityV2 : BaseComposeActivity() {
                 PickMediasRequest(it.id, it.maxCount, it.mediaType)
             )
         }
+        onGlobalEvent<GlobalEvent.StartActivityForResult> {
+            mLaunchActivityForResultLauncher.launch(
+                LaunchActivityRequest(
+                    it.requesterId,
+                    it.intent
+                )
+            )
+        }
         TiebaLiteLocalProvider {
             TranslucentThemeBackground {
                 val navController = rememberNavController()
-                SideEffect {
-                    myNavCollector = navController
-                }
                 val engine = TiebaNavHostDefaults.rememberNavHostEngine()
                 val navigator = TiebaNavHostDefaults.rememberBottomSheetNavigator()
                 val currentDestination by navController.currentDestinationAsState()
@@ -430,6 +498,10 @@ class MainActivityV2 : BaseComposeActivity() {
                             engine = engine,
                         )
                     }
+                }
+
+                SideEffect {
+                    myNavController = navController
                 }
             }
         }
